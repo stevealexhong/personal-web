@@ -1,0 +1,2837 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HTML 实时编辑器</title>
+<style>
+  :root{
+    --bg:#1b1d21;
+    --panel:#212429;
+    --border:#2e3238;
+    --text:#e6e8eb;
+    --muted:#8b929c;
+    --accent:#4c8dff;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; margin:0; }
+  body{
+    display:flex; flex-direction:column; overflow:hidden;
+    background:var(--bg); color:var(--text);
+    font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;
+  }
+
+  /* ============ 顶栏 ============ */
+  header{
+    flex:0 0 auto; height:48px; display:flex; align-items:center; gap:8px;
+    padding:0 14px; background:var(--panel); border-bottom:1px solid var(--border);
+  }
+  .brand{ font-size:14px; font-weight:600; letter-spacing:.5px; color:#fff; white-space:nowrap; }
+  .brand span{ color:var(--accent); }
+  .spacer{ flex:1 1 auto; }
+  .stat{ font-size:12px; color:var(--muted); margin-right:6px; white-space:nowrap; }
+
+  button{
+    background:#2a2e35; color:var(--text); border:1px solid #383d45;
+    border-radius:6px; padding:6px 12px; font-size:13px; cursor:pointer;
+    transition:background .15s,border-color .15s,box-shadow .15s;
+    white-space:nowrap; font-family:inherit;
+  }
+  button:hover{ background:#333943; border-color:#454b55; }
+  button:active{ transform:translateY(1px); }
+  #btnRun.dirty{ animation:pulse 1.2s infinite; }
+  @keyframes pulse{
+    0%,100%{ box-shadow:0 0 0 2px rgba(76,141,255,.25); }
+    50%    { box-shadow:0 0 0 4px rgba(76,141,255,.5); }
+  }
+
+  .switch{
+    display:flex; align-items:center; gap:6px; font-size:13px;
+    color:var(--muted); cursor:pointer; user-select:none; margin-right:4px;
+  }
+  .switch input{ width:14px; height:14px; accent-color:var(--accent); cursor:pointer; }
+
+  /* ============ 主体 ============ */
+  #main{ flex:1 1 auto; display:flex; min-height:0; }
+
+  #editorPane{
+    flex:0 0 50%; min-width:0;
+    display:flex; flex-direction:column;
+    overflow:hidden; background:var(--bg); position:relative;
+  }
+
+  /* ---- 编辑器内部工具条 ---- */
+  #editorToolbar{
+    flex:0 0 auto; height:36px;
+    display:flex; align-items:center; gap:6px;
+    padding:0 10px;
+    background:#1e2126; border-bottom:1px solid #26292e;
+  }
+  #editorToolbar button{
+    height:24px; padding:0 10px; font-size:12px; border-radius:5px;
+    display:inline-flex; align-items:center; gap:5px;
+  }
+  #btnFind.active{
+    background:rgba(76,141,255,.22);
+    border-color:rgba(76,141,255,.55);
+    color:#cfe0ff;
+  }
+  #editorToolbar .tool-hint{
+    margin-left:auto; font-size:11px; color:#5a6270; user-select:none;
+  }
+
+  /* 检查按钮状态 */
+  #btnLint.lint-error{ border-color:rgba(224,108,117,.6); color:#f0a0a0; background:rgba(224,108,117,.12); }
+  #btnLint.lint-warning{ border-color:rgba(229,192,123,.55); color:#e5c07b; background:rgba(229,192,123,.1); }
+  #btnLint.lint-ok{ border-color:rgba(126,198,153,.5); color:#7ec699; }
+
+  /* ---- 编辑主体（行号 + 代码） ---- */
+  #editorBody{
+    flex:1 1 auto; min-height:0; display:flex; overflow:hidden;
+  }
+  #gutter{
+    flex:0 0 auto; min-width:50px;
+    padding:14px 10px 14px 12px; text-align:right;
+    font:13px/20px ui-monospace,Consolas,"SF Mono",Menlo,monospace;
+    color:#5a6270; background:#181a1e;
+    user-select:none; overflow:hidden; white-space:pre;
+    border-right:1px solid #26292e;
+  }
+  .gl-error  { color:#e06c75 !important; font-weight:700; }
+  .gl-warning{ color:#e5c07b !important; font-weight:700; }
+  .gl-info   { color:#61afef !important; }
+
+  #editorScroll{
+    flex:1 1 auto; min-width:0; position:relative; overflow:hidden;
+  }
+  #highlight, #code{
+    position:absolute; inset:0; margin:0; padding:14px;
+    font:13px/20px ui-monospace,Consolas,"SF Mono",Menlo,monospace;
+    white-space:pre; word-wrap:normal; overflow-wrap:normal;
+    tab-size:2; border:0; outline:0;
+  }
+  #highlight{
+    overflow:auto; z-index:1; pointer-events:none;
+    color:var(--text); background:transparent;
+    scrollbar-width:none;
+  }
+  #highlight::-webkit-scrollbar{ display:none; }
+  #highlight code{ display:block; font:inherit; white-space:pre; }
+
+  #code{
+    overflow:auto; z-index:2; background:transparent;
+    color:transparent; -webkit-text-fill-color:transparent;
+    caret-color:var(--accent); resize:none;
+    scrollbar-width:none;
+  }
+  #code::-webkit-scrollbar{ display:none; }
+  #code::selection{
+    background:rgba(76,141,255,.32);
+    color:transparent; -webkit-text-fill-color:transparent;
+  }
+
+  /* ---- 语法着色 ---- */
+  .tok-comment { color:#7f848e; font-style:italic; }
+  .tok-doctype { color:#7f848e; }
+  .tok-tag     { color:#e06c75; }
+  .tok-attr    { color:#d19a66; }
+  .tok-str     { color:#98c379; }
+  .tok-num     { color:#d19a66; }
+  .tok-keyword { color:#c678dd; }
+  .tok-literal { color:#56b6c2; }
+  .tok-fn      { color:#61afef; }
+  .tok-selector{ color:#e5c07b; }
+  .tok-prop    { color:#61afef; }
+  .tok-punc    { color:#abb2bf; }
+
+  /* ============ 横向分隔条（编辑区 / 代码预览区） ============ */
+  #hSplitter{
+    flex:0 0 6px; position:relative; cursor:row-resize;
+    background:var(--border); transition:background .15s;
+    z-index:3;
+  }
+  #hSplitter::after{
+    content:""; position:absolute; left:50%; top:50%;
+    transform:translate(-50%,-50%);
+    width:34px; height:2px; border-radius:2px;
+    background:rgba(255,255,255,.14);
+    transition:background .15s;
+  }
+  #hSplitter:hover, body.h-resizing #hSplitter{ background:var(--accent); }
+  #hSplitter:hover::after, body.h-resizing #hSplitter::after{ background:rgba(255,255,255,.7); }
+  body.h-resizing{ cursor:row-resize; }
+  body.h-resizing #code,
+  body.h-resizing iframe{ pointer-events:none; }
+
+  /* ============ 代码预览区（只读，与编辑区同步） ============ */
+  #codePreviewPane{
+    flex:0 0 34%; min-height:70px;
+    display:flex; flex-direction:column;
+    overflow:hidden; position:relative;
+    background:#181a1e;
+  }
+  #codePreviewHead{
+    flex:0 0 auto; height:26px;
+    display:flex; align-items:center; gap:8px;
+    padding:0 10px;
+    background:#1a1c21; border-bottom:1px solid #26292e;
+    font-size:11px; color:#5a6270;
+    user-select:none;
+  }
+  #codePreviewHead .cp-dot{
+    flex:0 0 auto; width:7px; height:7px; border-radius:50%;
+    background:#4c8dff; box-shadow:0 0 6px rgba(76,141,255,.85);
+  }
+  #codePreviewHead .cp-label{
+    color:#9aa2ae; font-weight:600; letter-spacing:.5px;
+  }
+  #codePreviewHead .cp-hint{ margin-left:auto; white-space:nowrap; }
+  #codePreviewHead .cp-hint b{ color:#7fa9ff; font-weight:600; }
+
+  #codePreviewBody{
+    flex:1 1 auto; min-height:0; position:relative; overflow:hidden;
+  }
+  #codePreviewScroll{
+    position:absolute; inset:0;
+    overflow:auto;
+    scrollbar-width:thin;
+  }
+  #codePreviewScroll::-webkit-scrollbar{ width:8px; height:8px; }
+  #codePreviewScroll::-webkit-scrollbar-thumb{
+    background:#3a3f47; border-radius:4px;
+    border:2px solid transparent; background-clip:content-box;
+  }
+
+  #codePreviewPre{
+    margin:0; padding:14px;
+    font:13px/20px ui-monospace,Consolas,"SF Mono",Menlo,monospace;
+    white-space:pre; tab-size:2;
+    color:var(--text);
+    min-width:100%; min-height:100%;
+    display:block;
+  }
+  #codePreviewPre code{ display:block; font:inherit; white-space:pre; }
+
+  #codePreviewOverlay{
+    position:absolute; inset:0;
+    pointer-events:none; overflow:hidden;
+    z-index:2;
+  }
+  .cp-hl{
+    position:absolute;
+    border:1.5px dashed rgba(76,141,255,.95);
+    border-radius:3px;
+    background:rgba(76,141,255,.15);
+    box-shadow:0 0 0 1px rgba(76,141,255,.18), 0 0 10px rgba(76,141,255,.22);
+    box-sizing:border-box;
+    pointer-events:none;
+    animation:cpHlIn .12s ease both;
+  }
+  @keyframes cpHlIn{ from{ opacity:0; } to{ opacity:1; } }
+
+  /* 字符宽度测量（与代码区同字体） */
+  #cpMeasure{
+    position:fixed; left:-99999px; top:0;
+    visibility:hidden; pointer-events:none;
+    white-space:pre;
+    font:13px/20px ui-monospace,Consolas,"SF Mono",Menlo,monospace;
+    letter-spacing:normal; word-spacing:normal; tab-size:2;
+  }
+
+  /* ============ 问题面板 ============ */
+  #issuePanel{
+    flex:0 0 auto; max-height:0; overflow:hidden; min-height:0;
+    display:flex; flex-direction:column;
+    background:#1e2126; border-top:1px solid #2e3238;
+    transition:max-height .22s ease;
+  }
+  #issuePanel.show{ max-height:230px; }
+
+  .ip-head{
+    flex:0 0 auto; height:32px;
+    display:flex; align-items:center; gap:10px;
+    padding:0 10px; border-bottom:1px solid #26292e; font-size:12px;
+  }
+  #issueSummary{ font-weight:600; color:#7b828d; }
+  #issueSummary.ok{ color:#7ec699; }
+  #issueSummary.has-warning{ color:#e5c07b; }
+  #issueSummary.has-error{ color:#e06c75; }
+  .ip-head .spacer{ flex:1 1 auto; }
+  .ip-head button{
+    height:22px; padding:0 8px; font-size:11px; border-radius:5px;
+    background:#2a2e35; border:1px solid #383d45;
+  }
+
+  #issueList{ flex:1 1 auto; min-height:0; overflow-y:auto; }
+
+  .issue-item{
+    display:flex; align-items:baseline; gap:8px;
+    padding:4px 10px; cursor:pointer; font-size:12px;
+    border-bottom:1px solid rgba(255,255,255,.03);
+  }
+  .issue-item:hover{ background:rgba(255,255,255,.055); }
+
+  .ii-icon{
+    flex:0 0 auto; width:14px; height:14px; line-height:14px; text-align:center;
+    border-radius:50%; font-size:9px; font-weight:700;
+    position:relative; top:1px;
+  }
+  .sev-error   .ii-icon{ background:rgba(224,108,117,.22); color:#e06c75; }
+  .sev-warning .ii-icon{ background:rgba(229,192,123,.2);  color:#e5c07b; }
+  .sev-info    .ii-icon{ background:rgba(97,175,239,.2);   color:#61afef; }
+
+  .ii-line{
+    flex:0 0 auto; min-width:48px; text-align:right;
+    font:11px/1.6 ui-monospace,Consolas,monospace;
+    color:#6b7480; font-variant-numeric:tabular-nums;
+  }
+  .sev-error .ii-line{ color:#c97b7b; }
+
+  .ii-src{
+    flex:0 0 auto; font-size:10px; padding:0 5px; border-radius:4px;
+    background:rgba(255,255,255,.07); color:#8b929c;
+  }
+  .ii-msg{ flex:1 1 auto; min-width:0; color:#b8bec7; word-break:break-word; }
+
+  .issue-empty{
+    padding:22px 12px; text-align:center; font-size:12px; color:#6b7480;
+  }
+
+  /* ============ 查找面板 ============ */
+  #searchPanel{
+    position:absolute; top:44px; right:12px;
+    width:368px; max-width:calc(100% - 24px);
+    max-height:calc(100% - 60px);
+    display:none; flex-direction:column;
+    background:#23262c;
+    border:1px solid #3a3f47;
+    border-radius:10px;
+    box-shadow:0 14px 38px rgba(0,0,0,.55);
+    z-index:30; overflow:hidden;
+    font-size:13px;
+  }
+  #searchPanel.show{ display:flex; animation:spIn .14s ease; }
+  @keyframes spIn{
+    from{ opacity:0; transform:translateY(-6px); }
+    to  { opacity:1; transform:translateY(0); }
+  }
+
+  .sp-head{
+    flex:0 0 auto; display:flex; align-items:center; gap:5px;
+    padding:8px 8px 8px 10px;
+    border-bottom:1px solid #2e3238;
+  }
+  #searchInput{
+    flex:1 1 auto; min-width:0;
+    height:28px; padding:0 9px;
+    background:#181a1e; color:var(--text);
+    border:1px solid #383d45; border-radius:6px;
+    font:13px/1 ui-monospace,Consolas,monospace;
+    outline:0;
+  }
+  #searchInput:focus{ border-color:var(--accent); box-shadow:0 0 0 2px rgba(76,141,255,.18); }
+  #searchInput::placeholder{ color:#5f6773; }
+
+  #searchPanel button{
+    height:26px; min-width:26px; padding:0 7px;
+    font-size:13px; line-height:1; border-radius:5px;
+    display:inline-flex; align-items:center; justify-content:center;
+    background:#2a2e35; border:1px solid #383d45;
+  }
+  #searchPanel button:hover{ background:#333943; }
+
+  .sp-opts{
+    flex:0 0 auto;
+    display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+    padding:7px 10px;
+    border-bottom:1px solid #2e3238;
+    font-size:11.5px; color:var(--muted);
+    user-select:none;
+  }
+  .sp-opts label{ display:inline-flex; align-items:center; gap:4px; cursor:pointer; }
+  .sp-opts input[type=checkbox]{ width:13px; height:13px; accent-color:var(--accent); cursor:pointer; margin:0; }
+  #spCount{ margin-left:auto; font-variant-numeric:tabular-nums; color:#7b828d; white-space:nowrap; }
+
+  #spResults{
+    flex:1 1 auto; min-height:60px;
+    overflow-y:auto; overflow-x:hidden;
+    scrollbar-width:thin;
+  }
+  #spResults::-webkit-scrollbar{ width:8px; }
+  #spResults::-webkit-scrollbar-thumb{
+    background:#3a3f47; border-radius:4px; border:2px solid transparent; background-clip:content-box;
+  }
+
+  .search-item{
+    display:flex; gap:8px; align-items:baseline;
+    padding:5px 10px;
+    cursor:pointer;
+    border-bottom:1px solid rgba(255,255,255,.035);
+  }
+  .search-item:last-child{ border-bottom:0; }
+  .search-item:hover{ background:rgba(255,255,255,.06); }
+  .search-item.active{ background:rgba(76,141,255,.2); }
+
+  .si-line{
+    flex:0 0 auto; min-width:38px; text-align:right;
+    color:#6b7480; font:12px/1.6 ui-monospace,Consolas,monospace;
+    font-variant-numeric:tabular-nums;
+    user-select:none;
+  }
+  .search-item.active .si-line{ color:#9dc0ff; }
+  .si-text{
+    flex:1 1 auto; min-width:0;
+    font:12px/1.6 ui-monospace,Consolas,monospace;
+    color:#b8bec7;
+    white-space:pre; overflow:hidden; text-overflow:ellipsis;
+  }
+  .si-text mark{
+    background:rgba(76,141,255,.34);
+    color:#eaf1ff;
+    border-radius:2px; padding:0 1px;
+  }
+  .search-item.active .si-text mark{
+    background:rgba(255,196,0,.55);
+    color:#fff;
+  }
+  .si-count{
+    flex:0 0 auto; font-size:10.5px; color:#6b7480;
+    background:rgba(255,255,255,.07);
+    border-radius:8px; padding:0 6px;
+    user-select:none;
+  }
+
+  .search-empty{
+    padding:18px 12px; text-align:center;
+    font-size:12px; color:#6b7480;
+  }
+  .search-empty.search-error{ color:#e58484; text-align:left; padding:14px 12px; word-break:break-word; }
+
+  /* ============ 竖向分隔条 ============ */
+  #splitter{
+    flex:0 0 6px; position:relative; cursor:col-resize;
+    background:var(--border); transition:background .15s;
+  }
+  #splitter:hover, body.resizing #splitter{ background:var(--accent); }
+  body.resizing{ cursor:col-resize; }
+  body.resizing iframe,
+  body.resizing #code{ pointer-events:none; }
+
+  /* ============ 预览区 ============ */
+  #previewPane{
+    flex:1 1 auto; min-width:0; position:relative;
+    background:#fff; overflow:hidden;
+  }
+  #previewStage{ position:absolute; inset:0; overflow:hidden; background:#fff; }
+  #preview{
+    display:block; width:100%; height:100%;
+    border:0; background:#fff;
+    transform-origin:0 0; will-change:transform;
+  }
+  #previewPane:fullscreen{ background:#fff; }
+
+  /* ============ 缩放控制条 ============ */
+  #zoomBar{
+    position:absolute; top:10px; right:10px; z-index:6;
+    display:flex; align-items:center; gap:2px; padding:4px;
+    border-radius:10px;
+    background:rgba(28,31,36,.82);
+    border:1px solid rgba(255,255,255,.13);
+    box-shadow:0 6px 20px rgba(0,0,0,.38);
+    -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);
+    opacity:.5; transition:opacity .18s;
+    user-select:none; -webkit-user-select:none;
+  }
+  #previewPane:hover #zoomBar,
+  #zoomBar:focus-within{ opacity:1; }
+
+  #zoomBar button{
+    height:24px; min-width:24px; padding:0 7px;
+    display:inline-flex; align-items:center; justify-content:center;
+    background:transparent; border:0; border-radius:6px;
+    color:var(--text); font-size:15px; line-height:1;
+    cursor:pointer; font-family:inherit;
+  }
+  #zoomBar button:hover{ background:rgba(255,255,255,.16); border-color:transparent; }
+  #zoomBar button:active{ transform:translateY(1px); }
+  #zoomBar #zoomLabel{
+    min-width:56px; font-size:12px; font-weight:600;
+    font-variant-numeric:tabular-nums; letter-spacing:.2px; color:#fff;
+  }
+  #zoomBar .sep{ width:1px; height:16px; margin:0 3px; background:rgba(255,255,255,.2); }
+
+  /* ============ 错误条 ============ */
+  #errorBar{
+    position:absolute; left:0; right:0; bottom:0; z-index:5;
+    max-height:40%; overflow:auto; padding:8px 14px;
+    background:rgba(190,38,38,.96); color:#fff;
+    font:12px/1.6 ui-monospace,Consolas,monospace;
+    white-space:pre-wrap; word-break:break-word;
+    transform:translateY(100%); transition:transform .18s ease;
+    pointer-events:none;
+  }
+  #errorBar.show{ transform:translateY(0); pointer-events:auto; }
+
+  /* ============ 拖拽遮罩 ============ */
+  #dropOverlay{
+    position:fixed; inset:0; z-index:100; display:none;
+    align-items:center; justify-content:center;
+    background:rgba(10,12,16,.78);
+    -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px);
+    color:#fff; font-size:18px;
+  }
+  #dropOverlay.show{ display:flex; }
+  #dropOverlay .box{
+    padding:52px 72px; text-align:center; border-radius:18px;
+    border:2px dashed rgba(255,255,255,.45);
+    background:rgba(76,141,255,.08);
+  }
+  #dropOverlay .box small{ display:block; margin-top:10px; font-size:13px; opacity:.6; }
+
+  /* ============ Toast ============ */
+  #toast{
+    position:fixed; left:50%; bottom:36px; transform:translate(-50%,16px);
+    background:rgba(20,22,26,.95); color:#fff; border:1px solid #3a3f47;
+    padding:9px 18px; border-radius:8px; font-size:13px; z-index:200;
+    opacity:0; pointer-events:none; transition:opacity .2s,transform .2s;
+  }
+  #toast.show{ opacity:1; transform:translate(-50%,0); }
+
+  /* 滚动条（全局） */
+  ::-webkit-scrollbar{ width:10px; height:10px; }
+  ::-webkit-scrollbar-track{ background:transparent; }
+  ::-webkit-scrollbar-thumb{ background:#3a3f47; border-radius:6px; border:2px solid transparent; background-clip:content-box; }
+  ::-webkit-scrollbar-thumb:hover{ background:#4a5058; background-clip:content-box; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">HTML实时编辑<span>By Steve_Alex</span></div>
+  <div class="spacer"></div>
+  <span class="stat" id="stat">—</span>
+  <label class="switch"><input type="checkbox" id="hoverLink" checked> 悬停定位</label>
+  <label class="switch"><input type="checkbox" id="autoRefresh" checked> 自动刷新</label>
+  <button id="btnRun" title="运行 (Ctrl/Cmd + Enter)">▶ 运行</button>
+  <button id="btnFullscreen" title="全屏预览">⛶ 全屏</button>
+  <button id="btnCopy" title="复制全部代码">⧉ 复制</button>
+  <button id="btnDownload" title="下载为 .html">⤓ 下载</button>
+  <button id="btnClear" title="清空编辑器">✕ 清空</button>
+</header>
+
+<main id="main">
+
+  <section id="editorPane">
+    <!-- 代码区顶部工具条 -->
+    <div id="editorToolbar">
+      <button id="btnFind" title="全局查找 (Ctrl/Cmd + F)">单击此处查找</button>
+      <button id="btnLint" title="检查代码格式问题">⚑ 检查</button>
+      <span class="tool-hint">Ctrl / Cmd + F</span>
+    </div>
+
+    <div id="editorBody">
+      <div id="gutter">1</div>
+      <div id="editorScroll">
+        <pre id="highlight" aria-hidden="true"><code id="hlCode"></code></pre>
+        <textarea id="code" spellcheck="false" wrap="off"
+                  autocomplete="off" autocapitalize="off" autocorrect="off"></textarea>
+      </div>
+    </div>
+
+    <!-- 横向分隔条 -->
+    <div id="hSplitter" title="拖动调整上下比例（双击复位）"></div>
+
+    <!-- 代码预览区（只读，与上方编辑区同步） -->
+    <div id="codePreviewPane">
+      <div id="codePreviewHead">
+        <span class="cp-dot"></span>
+        <span class="cp-label">代码预览</span>
+      </div>
+      <div id="codePreviewBody">
+        <div id="codePreviewScroll">
+          <pre id="codePreviewPre"><code id="codePreviewCode"></code></pre>
+        </div>
+        <div id="codePreviewOverlay"></div>
+      </div>
+    </div>
+
+    <!-- 问题面板 -->
+    <div id="issuePanel">
+      <div class="ip-head">
+        <span id="issueSummary">未发现问题</span>
+        <span class="spacer"></span>
+        <button id="btnRecheck" title="重新检查">↻ 重新检查</button>
+        <button id="ipClose" title="收起面板">✕</button>
+      </div>
+      <div id="issueList"></div>
+    </div>
+
+    <!-- 查找弹出窗口 -->
+    <div id="searchPanel">
+      <div class="sp-head">
+        <input id="searchInput" type="text" placeholder="查找内容…" spellcheck="false" autocomplete="off">
+        <button id="spPrev" title="上一个匹配 (Shift + Enter)">↑</button>
+        <button id="spNext" title="下一个匹配 (Enter)">↓</button>
+        <button id="spClose" title="关闭 (Esc)">✕</button>
+      </div>
+      <div class="sp-opts">
+        <label><input type="checkbox" id="spCase"> 区分大小写</label>
+        <label><input type="checkbox" id="spWord"> 全词匹配</label>
+        <label><input type="checkbox" id="spRegex"> 正则</label>
+        <span id="spCount"></span>
+      </div>
+      <div id="spResults"></div>
+    </div>
+  </section>
+
+  <div id="splitter" title="拖动调整宽度（双击复位）"></div>
+
+  <section id="previewPane">
+    <div id="previewStage">
+      <iframe id="preview" title="预览"></iframe>
+    </div>
+
+    <div id="zoomBar">
+      <button id="zoomOut" title="缩小 (Ctrl/Cmd + -)">−</button>
+      <button id="zoomLabel" title="点击重置为 100%">100%</button>
+      <button id="zoomIn" title="放大 (Ctrl/Cmd + +)">+</button>
+      <span class="sep"></span>
+      <button id="zoomReset" title="重置缩放 (Ctrl/Cmd + 0)">⟲</button>
+    </div>
+
+    <div id="errorBar"></div>
+  </section>
+</main>
+
+<div id="dropOverlay">
+  <div class="box">
+    📄 松开鼠标导入文件
+    <small>支持 .html / .htm / .css / .js / .txt 等文本文件</small>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<!-- 预览区 #btn 触发用的文件选择器 -->
+<input type="file" id="filePicker" accept=".html,.htm,text/html" style="display:none">
+
+<!-- 字符宽度测量元素 -->
+<span id="cpMeasure" aria-hidden="true"></span>
+
+<script>
+(function () {
+  'use strict';
+
+  /* =========================================================
+     元素引用
+     ========================================================= */
+  var editor      = document.getElementById('code');
+  var hlLayer     = document.getElementById('highlight');
+  var hlCode      = document.getElementById('hlCode');
+  var gutter      = document.getElementById('gutter');
+  var iframe      = document.getElementById('preview');
+  var splitter    = document.getElementById('splitter');
+  var hSplitter   = document.getElementById('hSplitter');
+  var mainEl      = document.getElementById('main');
+  var editorPane  = document.getElementById('editorPane');
+  var previewPane = document.getElementById('previewPane');
+  var errorBar    = document.getElementById('errorBar');
+  var autoToggle  = document.getElementById('autoRefresh');
+  var hoverToggle = document.getElementById('hoverLink');
+  var statEl      = document.getElementById('stat');
+  var dropOverlay = document.getElementById('dropOverlay');
+  var btnRun      = document.getElementById('btnRun');
+  var toastEl     = document.getElementById('toast');
+  var zoomLabel   = document.getElementById('zoomLabel');
+  var filePicker  = document.getElementById('filePicker');
+
+  // 代码预览区
+  var codePreviewPane    = document.getElementById('codePreviewPane');
+  var codePreviewScroll  = document.getElementById('codePreviewScroll');
+  var codePreviewCode    = document.getElementById('codePreviewCode');
+  var codePreviewOverlay = document.getElementById('codePreviewOverlay');
+  var cpMeasure          = document.getElementById('cpMeasure');
+
+  // 查找相关
+  var btnFind      = document.getElementById('btnFind');
+  var searchPanel  = document.getElementById('searchPanel');
+  var searchInput  = document.getElementById('searchInput');
+  var spPrev       = document.getElementById('spPrev');
+  var spNext       = document.getElementById('spNext');
+  var spClose      = document.getElementById('spClose');
+  var spCase       = document.getElementById('spCase');
+  var spWord       = document.getElementById('spWord');
+  var spRegex      = document.getElementById('spRegex');
+  var spCount      = document.getElementById('spCount');
+  var spResults    = document.getElementById('spResults');
+
+  // 检查相关
+  var btnLint      = document.getElementById('btnLint');
+  var issuePanel   = document.getElementById('issuePanel');
+  var issueList    = document.getElementById('issueList');
+  var issueSummary = document.getElementById('issueSummary');
+  var btnRecheck   = document.getElementById('btnRecheck');
+  var ipClose      = document.getElementById('ipClose');
+
+  var STORAGE_KEY  = 'live-html-editor:code';
+  var ZOOM_KEY     = 'live-html-editor:zoom';
+  var RENDER_DELAY = 300;
+  var LINT_DELAY   = 500;
+  var HL_LIMIT     = 250000;
+  var LINT_LIMIT   = 400000;
+  var MAX_GROUPS   = 400;
+  var MAX_MATCHES  = 20000;
+  var MAX_ISSUES   = 500;
+
+  /* 代码预览区度量常量（必须与 CSS 中 #codePreviewPre 一致） */
+  var CP_PAD    = 14;
+  var CP_LINE_H = 20;
+
+  /* =========================================================
+     默认示例
+     ========================================================= */
+  var DEFAULT_CODE = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>我的页面</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    font-family: system-ui, -apple-system, "Microsoft YaHei", sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+  }
+  .card {
+    padding: 36px 46px;
+    text-align: center;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, .14);
+    border: 1px solid rgba(255, 255, 255, .28);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, .25);
+    backdrop-filter: blur(12px);
+  }
+  h1 { margin: 0 0 10px; font-size: 26px; }
+  p  { margin: 0 0 22px; font-size: 14px; opacity: .85; }
+  button {
+    padding: 10px 24px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #4a3ab8;
+    background: #fff;
+    border: 0;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: transform .12s ease;
+  }
+  button:active { transform: scale(.94); }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>那么，请开始你的表演:-)</h1>
+    <p>或者用鼠标把文件直接拖进来，在左侧修改代码，右侧会实时刷新</p>
+    <button id="btn">开始(点击此处以选择文件)</button>
+  </div>
+</body>
+</html>`;
+
+  /* =========================================================
+     通用工具
+     ========================================================= */
+  function escapeHtml(s) {
+    return String(s).replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;');
+  }
+  function span(cls, text) {
+    return '<span class="tok-' + cls + '">' + text + '</span>';
+  }
+
+  var toastTimer = null;
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toastEl.classList.remove('show'); }, 1600);
+  }
+  function showError(msg) { errorBar.textContent = msg; errorBar.classList.add('show'); }
+  function hideError() { errorBar.classList.remove('show'); errorBar.textContent = ''; }
+
+  /* =========================================================
+     一、语法高亮引擎
+     ========================================================= */
+
+  function highlightTag(tag) {
+    var out = '', i = 0, n = tag.length;
+
+    if (tag.charAt(i) === '<') {
+      if (tag.charAt(i + 1) === '/') { out += span('punc', '&lt;/'); i += 2; }
+      else { out += span('punc', '&lt;'); i += 1; }
+    }
+
+    var nm = /^[a-zA-Z][a-zA-Z0-9:_-]*/.exec(tag.slice(i));
+    if (nm) { out += span('tag', nm[0]); i += nm[0].length; }
+
+    while (i < n) {
+      var ch = tag.charAt(i);
+
+      if (ch === '>') { out += span('punc', '&gt;'); i++; continue; }
+      if (ch === '/') { out += span('punc', '/'); i++; continue; }
+      if (/\s/.test(ch)) { out += ch; i++; continue; }
+
+      var am = /^[^\s=/>]+/.exec(tag.slice(i));
+      if (!am) { out += escapeHtml(ch); i++; continue; }
+      out += span('attr', escapeHtml(am[0]));
+      i += am[0].length;
+
+      var ws = '';
+      while (i < n && /\s/.test(tag.charAt(i))) { ws += tag.charAt(i); i++; }
+
+      if (tag.charAt(i) === '=') {
+        out += ws + span('punc', '=');
+        i++;
+        ws = '';
+        while (i < n && /\s/.test(tag.charAt(i))) { ws += tag.charAt(i); i++; }
+        out += ws;
+
+        var q = tag.charAt(i);
+        if (q === '"' || q === "'") {
+          var e = tag.indexOf(q, i + 1);
+          if (e === -1) e = n;
+          out += span('str', escapeHtml(tag.slice(i, e + 1)));
+          i = e + 1;
+        } else {
+          var vm = /^[^\s>]+/.exec(tag.slice(i));
+          if (vm) { out += span('str', escapeHtml(vm[0])); i += vm[0].length; }
+        }
+      } else {
+        out += ws;
+      }
+    }
+    return out;
+  }
+
+  function highlightCSS(src) {
+    var out = '', i = 0, n = src.length;
+
+    while (i < n) {
+      var c = src.charAt(i);
+
+      if (c === '/' && src.charAt(i + 1) === '*') {
+        var e = src.indexOf('*/', i + 2);
+        e = (e === -1) ? n : e + 2;
+        out += span('comment', escapeHtml(src.slice(i, e)));
+        i = e; continue;
+      }
+
+      if (c === '"' || c === "'") {
+        var j = i + 1;
+        while (j < n) {
+          if (src.charAt(j) === '\\') { j += 2; continue; }
+          if (src.charAt(j) === c) { j++; break; }
+          j++;
+        }
+        out += span('str', escapeHtml(src.slice(i, j)));
+        i = j; continue;
+      }
+
+      if (c === '@') {
+        var at = /^@[a-zA-Z-]+/.exec(src.slice(i));
+        if (at) { out += span('keyword', at[0]); i += at[0].length; continue; }
+      }
+
+      var hm = /^#[0-9a-fA-F]{3,8}(?![0-9a-fA-F])/.exec(src.slice(i));
+      if (hm) { out += span('num', hm[0]); i += hm[0].length; continue; }
+
+      if (/[-+.\d]/.test(c)) {
+        var num = /^[-+]?(?:\d+\.?\d*|\.\d+)(?:px|em|rem|ex|ch|vh|vw|vmin|vmax|%|s|ms|deg|rad|turn|fr|pt|pc|cm|mm|in|q)?/i
+                  .exec(src.slice(i));
+        if (num && num[0]) { out += span('num', num[0]); i += num[0].length; continue; }
+      }
+
+      if ('{}();:,'.indexOf(c) !== -1) {
+        out += span('punc', escapeHtml(c));
+        i++; continue;
+      }
+
+      var wm = /^[a-zA-Z_-][a-zA-Z0-9_-]*/.exec(src.slice(i));
+      if (wm) {
+        var word = wm[0];
+        var rest = src.slice(i + word.length);
+        var isProp = /^\s*:/.test(rest);
+        out += span(isProp ? 'prop' : 'selector', escapeHtml(word));
+        i += word.length;
+        continue;
+      }
+
+      out += escapeHtml(c);
+      i++;
+    }
+    return out;
+  }
+
+  var JS_KEYWORDS = /^(?:break|case|catch|class|const|continue|debugger|default|delete|do|else|export|extends|finally|for|function|if|import|in|instanceof|let|new|of|return|static|super|switch|this|throw|try|typeof|var|void|while|with|yield|async|await|get|set)$/;
+  var JS_LITERALS = /^(?:true|false|null|undefined|NaN|Infinity)$/;
+
+  function highlightJS(src) {
+    var out = '', i = 0, n = src.length;
+
+    while (i < n) {
+      var c = src.charAt(i);
+
+      if (c === '/' && src.charAt(i + 1) === '/') {
+        var e1 = src.indexOf('\n', i);
+        e1 = (e1 === -1) ? n : e1;
+        out += span('comment', escapeHtml(src.slice(i, e1)));
+        i = e1; continue;
+      }
+      if (c === '/' && src.charAt(i + 1) === '*') {
+        var e2 = src.indexOf('*/', i + 2);
+        e2 = (e2 === -1) ? n : e2 + 2;
+        out += span('comment', escapeHtml(src.slice(i, e2)));
+        i = e2; continue;
+      }
+
+      if (c === '"' || c === "'" || c === '`') {
+        var j = i + 1;
+        while (j < n) {
+          if (src.charAt(j) === '\\') { j += 2; continue; }
+          if (src.charAt(j) === c) { j++; break; }
+          j++;
+        }
+        out += span('str', escapeHtml(src.slice(i, j)));
+        i = j; continue;
+      }
+
+      if (/[\d.]/.test(c)) {
+        var num = /^(?:0[xX][0-9a-fA-F]+|0[bB][01]+|\d+\.?\d*(?:[eE][+-]?\d+)?|\.\d+)/.exec(src.slice(i));
+        if (num) { out += span('num', num[0]); i += num[0].length; continue; }
+      }
+
+      if (/[A-Za-z_$]/.test(c)) {
+        var w = /^[A-Za-z0-9_$]+/.exec(src.slice(i))[0];
+        if (JS_KEYWORDS.test(w))       out += span('keyword', w);
+        else if (JS_LITERALS.test(w))  out += span('literal', w);
+        else if (/^\s*\(/.test(src.slice(i + w.length))) out += span('fn', w);
+        else out += escapeHtml(w);
+        i += w.length;
+        continue;
+      }
+
+      if ('{}()[];,.:?!<>=+-*/%&|^~'.indexOf(c) !== -1) {
+        out += span('punc', escapeHtml(c));
+        i++; continue;
+      }
+
+      out += escapeHtml(c);
+      i++;
+    }
+    return out;
+  }
+
+  function isTagStart(code, idx) {
+    if (code.charCodeAt(idx) !== 60) return false;
+    var c = code.charAt(idx + 1);
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c === '/' || c === '!';
+  }
+
+  function highlightHTML(code) {
+    var out = '', i = 0, n = code.length;
+
+    while (i < n) {
+      if (code.startsWith('<!--', i)) {
+        var ce = code.indexOf('-->', i + 4);
+        ce = (ce === -1) ? n : ce + 3;
+        out += span('comment', escapeHtml(code.slice(i, ce)));
+        i = ce; continue;
+      }
+      if (code.charCodeAt(i) === 60 && code.charAt(i + 1) === '!') {
+        var de = code.indexOf('>', i);
+        de = (de === -1) ? n : de + 1;
+        out += span('doctype', escapeHtml(code.slice(i, de)));
+        i = de; continue;
+      }
+      if (code.charCodeAt(i) === 60 && /[a-zA-Z\/]/.test(code.charAt(i + 1))) {
+        var j = i + 1, q = null;
+        while (j < n) {
+          var ch = code.charAt(j);
+          if (q) { if (ch === q) q = null; }
+          else if (ch === '"' || ch === "'") q = ch;
+          else if (ch === '>') break;
+          j++;
+        }
+        var tagText = code.slice(i, Math.min(j + 1, n));
+        var mm = /^<([a-zA-Z][a-zA-Z0-9:_-]*)/.exec(tagText);
+
+        if (mm && /^(script|style)$/i.test(mm[1])) {
+          var name = mm[1].toLowerCase();
+          out += highlightTag(tagText);
+
+          var after = i + tagText.length;
+          var closeRe = new RegExp('<\\/' + name + '\\s*>', 'i');
+          var cm = closeRe.exec(code.slice(after));
+          var innerEnd = cm ? after + cm.index : n;
+          var inner = code.slice(after, innerEnd);
+
+          out += (name === 'style') ? highlightCSS(inner) : highlightJS(inner);
+
+          if (cm) {
+            out += highlightTag(cm[0]);
+            i = innerEnd + cm[0].length;
+          } else {
+            i = innerEnd;
+          }
+          continue;
+        }
+
+        out += highlightTag(tagText);
+        i = Math.min(j + 1, n);
+        continue;
+      }
+
+      var t = i;
+      while (t < n && !isTagStart(code, t)) t++;
+      out += escapeHtml(code.slice(i, t));
+      i = t;
+    }
+    return out;
+  }
+
+  /* =========================================================
+     二、高亮层渲染 & 滚动同步（编辑区 + 代码预览区）
+     ========================================================= */
+  function applyHighlight() {
+    var code = editor.value;
+    var html;
+    if (code.length > HL_LIMIT) {
+      html = escapeHtml(code);
+    } else {
+      try { html = highlightHTML(code); }
+      catch (err) { html = escapeHtml(code); }
+    }
+    hlCode.innerHTML = html;
+    codePreviewCode.innerHTML = html;
+    syncScroll();
+  }
+
+  var hlPending = false;
+  function scheduleHighlight() {
+    if (hlPending) return;
+    hlPending = true;
+    requestAnimationFrame(function () {
+      hlPending = false;
+      applyHighlight();
+    });
+  }
+
+  function syncScroll() {
+    hlLayer.scrollTop  = editor.scrollTop;
+    hlLayer.scrollLeft = editor.scrollLeft;
+    gutter.scrollTop   = editor.scrollTop;
+
+    // 代码预览区跟随编辑区滚动
+    if (codePreviewScroll) {
+      codePreviewScroll.scrollTop  = editor.scrollTop;
+      codePreviewScroll.scrollLeft = editor.scrollLeft;
+    }
+  }
+
+  /* =========================================================
+     三、行号 / 状态
+     ========================================================= */
+  var issueLineMap = null;
+
+  function updateMeta() {
+    var v = editor.value;
+    var lines = 1;
+    for (var i = 0; i < v.length; i++) {
+      if (v.charCodeAt(i) === 10) lines++;
+    }
+
+    var parts = [];
+    for (var j = 1; j <= lines; j++) {
+      var sev = issueLineMap ? issueLineMap[j] : null;
+      if (sev) {
+        parts.push('<span class="gl gl-' + sev + '">' + j + '</span>');
+      } else {
+        parts.push(String(j));
+      }
+    }
+    gutter.innerHTML = parts.join('\n');
+    gutter.scrollTop = editor.scrollTop;
+    statEl.textContent = lines + ' 行 · ' + v.length + ' 字符';
+  }
+
+  /* =========================================================
+     四、全局查找
+     ========================================================= */
+  var searchState = {
+    matches: [],
+    groups: [],
+    current: -1
+  };
+
+  function buildLineStarts(text) {
+    var arr = [0];
+    for (var i = 0; i < text.length; i++) {
+      if (text.charCodeAt(i) === 10) arr.push(i + 1);
+    }
+    return arr;
+  }
+
+  function lineOfOffset(starts, off) {
+    var lo = 0, hi = starts.length - 1;
+    while (lo < hi) {
+      var mid = (lo + hi + 1) >> 1;
+      if (starts[mid] <= off) lo = mid; else hi = mid - 1;
+    }
+    return lo;
+  }
+
+  function lineAt(starts, pos) {
+    return lineOfOffset(starts, pos) + 1;
+  }
+
+  function doSearch() {
+    var q = searchInput.value;
+    searchState.matches = [];
+    searchState.groups = [];
+    searchState.current = -1;
+
+    if (!q) {
+      spCount.textContent = '';
+      spResults.innerHTML = '<div class="search-empty">输入关键词开始查找</div>';
+      return;
+    }
+
+    var text = editor.value;
+    var re;
+
+    if (spRegex.checked) {
+      try {
+        re = new RegExp(q, 'g' + (spCase.checked ? '' : 'i'));
+      } catch (err) {
+        spCount.textContent = '';
+        spResults.innerHTML = '<div class="search-empty search-error">正则表达式无效：' +
+                              escapeHtml(err.message) + '</div>';
+        return;
+      }
+    } else {
+      var pat = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      if (spWord.checked) pat = '\\b' + pat + '\\b';
+      re = new RegExp(pat, 'g' + (spCase.checked ? '' : 'i'));
+    }
+
+    var m, guard = 0, truncated = false;
+    while ((m = re.exec(text)) !== null) {
+      if (m[0] === '') { re.lastIndex++; continue; }
+      searchState.matches.push({
+        start: m.index,
+        end: m.index + m[0].length,
+        text: m[0]
+      });
+      if (++guard >= MAX_MATCHES) { truncated = true; break; }
+    }
+
+    renderResults(truncated);
+  }
+
+  function renderResults(truncated) {
+    var matches = searchState.matches;
+
+    if (!matches.length) {
+      spCount.textContent = '0 处匹配';
+      spResults.innerHTML = '<div class="search-empty">未找到匹配内容</div>';
+      return;
+    }
+
+    var starts = buildLineStarts(editor.value);
+    var lines  = editor.value.split('\n');
+
+    var groups = [], lastLine = -1, cur = null;
+    for (var i = 0; i < matches.length; i++) {
+      var ln = lineOfOffset(starts, matches[i].start);
+      if (ln !== lastLine) {
+        cur = { line: ln, items: [matches[i]], firstIndex: i };
+        groups.push(cur);
+        lastLine = ln;
+      } else {
+        cur.items.push(matches[i]);
+      }
+    }
+    searchState.groups = groups;
+
+    var totalGroups = groups.length;
+    var shown = Math.min(totalGroups, MAX_GROUPS);
+
+    var html = '';
+    for (var g = 0; g < shown; g++) {
+      var grp = groups[g];
+      var lineText = lines[grp.line] != null ? lines[grp.line] : '';
+      var lineStart = starts[grp.line];
+
+      html += '<div class="search-item" data-match-index="' + grp.firstIndex + '">' +
+                '<span class="si-line">' + (grp.line + 1) + '</span>' +
+                '<span class="si-text">' + buildLineHtml(lineText, grp.items, lineStart) + '</span>' +
+                (grp.items.length > 1
+                  ? '<span class="si-count">×' + grp.items.length + '</span>'
+                  : '') +
+              '</div>';
+    }
+    if (totalGroups > shown) {
+      html += '<div class="search-empty">…… 仅显示前 ' + shown + ' 行（共 ' +
+              totalGroups + ' 行）</div>';
+    }
+
+    spResults.innerHTML = html;
+    spCount.textContent = matches.length + ' 处匹配' +
+                          ' · ' + totalGroups + ' 行' +
+                          (truncated ? ' (已截断)' : '');
+  }
+
+  function buildLineHtml(lineText, items, lineStart) {
+    var MAXLEN = 280;
+
+    var rel = items.map(function (m) {
+      return { s: m.start - lineStart, e: m.end - lineStart };
+    }).sort(function (a, b) { return a.s - b.s; });
+
+    var from = 0, to = lineText.length;
+    if (lineText.length > MAXLEN) {
+      from = Math.max(0, rel[0].s - 50);
+      to = Math.min(lineText.length, from + MAXLEN);
+      if (to - from < MAXLEN) from = Math.max(0, to - MAXLEN);
+    }
+    var prefix = from > 0 ? '…' : '';
+    var suffix = to < lineText.length ? '…' : '';
+
+    var out = '', cursor = from;
+    for (var i = 0; i < rel.length; i++) {
+      var r = rel[i];
+      if (r.e <= from || r.s >= to) continue;
+      var s = Math.max(r.s, from);
+      var e = Math.min(r.e, to);
+      if (s > cursor) out += escapeHtml(lineText.slice(cursor, s));
+      out += '<mark>' + escapeHtml(lineText.slice(s, e)) + '</mark>';
+      cursor = e;
+    }
+    if (cursor < to) out += escapeHtml(lineText.slice(cursor, to));
+
+    return prefix + out + suffix;
+  }
+
+  function scrollToLine(lineNo) {
+    var LINE_H  = 20;
+    var PADDING = 14;
+    var top = PADDING + (lineNo - 1) * LINE_H;
+    var viewH = editor.clientHeight;
+    var target = top - Math.max(0, viewH / 3);
+    if (target < 0) target = 0;
+    editor.scrollTop = target;
+    syncScroll();
+  }
+
+  function gotoMatch(index) {
+    var m = searchState.matches[index];
+    if (!m) return;
+
+    searchState.current = index;
+    editor.focus();
+    editor.setSelectionRange(m.start, m.end);
+
+    var starts = buildLineStarts(editor.value);
+    scrollToLine(lineOfOffset(starts, m.start) + 1);
+
+    updateActiveItem();
+  }
+
+  function updateActiveItem() {
+    var nodes = spResults.querySelectorAll('.search-item');
+    for (var i = 0; i < nodes.length; i++) nodes[i].classList.remove('active');
+
+    var cur = searchState.current;
+    if (cur < 0) return;
+
+    var groups = searchState.groups;
+    for (var g = 0; g < groups.length; g++) {
+      var grp = groups[g];
+      if (cur >= grp.firstIndex && cur < grp.firstIndex + grp.items.length) {
+        var el = nodes[g];
+        if (el) {
+          el.classList.add('active');
+          var top = el.offsetTop;
+          var bottom = top + el.offsetHeight;
+          if (top < spResults.scrollTop) {
+            spResults.scrollTop = top;
+          } else if (bottom > spResults.scrollTop + spResults.clientHeight) {
+            spResults.scrollTop = bottom - spResults.clientHeight;
+          }
+        }
+        return;
+      }
+    }
+  }
+
+  function stepMatch(dir) {
+    var n = searchState.matches.length;
+    if (!n) return;
+    var cur = searchState.current;
+    var next;
+    if (cur < 0) {
+      next = (dir > 0) ? 0 : n - 1;
+    } else {
+      next = ((cur + dir) % n + n) % n;
+    }
+    gotoMatch(next);
+  }
+
+  function openSearch() {
+    searchPanel.classList.add('show');
+    btnFind.classList.add('active');
+    searchInput.focus();
+    searchInput.select();
+    if (searchInput.value) doSearch();
+    else {
+      spResults.innerHTML = '<div class="search-empty">输入关键词开始查找</div>';
+      spCount.textContent = '';
+    }
+  }
+
+  function closeSearch() {
+    searchPanel.classList.remove('show');
+    btnFind.classList.remove('active');
+    editor.focus();
+  }
+
+  var searchTimer = null;
+  function scheduleSearch() {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(function () {
+      if (searchPanel.classList.contains('show') && searchInput.value) doSearch();
+    }, 160);
+  }
+
+  btnFind.addEventListener('click', function () {
+    if (searchPanel.classList.contains('show')) closeSearch();
+    else openSearch();
+  });
+
+  spClose.addEventListener('click', closeSearch);
+  spPrev.addEventListener('click', function () { stepMatch(-1); });
+  spNext.addEventListener('click', function () { stepMatch(1); });
+
+  searchInput.addEventListener('input', doSearch);
+
+  [spCase, spWord, spRegex].forEach(function (el) {
+    el.addEventListener('change', doSearch);
+  });
+
+  searchInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      stepMatch(e.shiftKey ? -1 : 1);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      closeSearch();
+    }
+  });
+
+  spResults.addEventListener('click', function (e) {
+    var item = e.target.closest ? e.target.closest('.search-item') : null;
+    if (!item) return;
+    var idx = parseInt(item.getAttribute('data-match-index'), 10);
+    if (!isNaN(idx)) gotoMatch(idx);
+  });
+
+  /* =========================================================
+     五、预览缩放
+     ========================================================= */
+  var ZOOM_STEPS = [0.25, 0.33, 0.5, 0.67, 0.75, 0.8, 0.9, 1,
+                    1.1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4];
+  var ZOOM_MIN = ZOOM_STEPS[0];
+  var ZOOM_MAX = ZOOM_STEPS[ZOOM_STEPS.length - 1];
+  var zoomLevel = 1;
+
+  function applyZoom() {
+    var z = zoomLevel;
+    iframe.style.transformOrigin = '0 0';
+    iframe.style.transform = 'scale(' + z + ')';
+    iframe.style.width  = (100 / z) + '%';
+    iframe.style.height = (100 / z) + '%';
+    zoomLabel.textContent = Math.round(z * 100) + '%';
+  }
+
+  function setZoom(z) {
+    if (typeof z !== 'number' || !isFinite(z) || z <= 0) z = 1;
+    z = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z));
+    zoomLevel = z;
+    applyZoom();
+    try { localStorage.setItem(ZOOM_KEY, String(z)); } catch (e) {}
+  }
+
+  function nearestIndex(z) {
+    var best = 0, bd = Infinity;
+    for (var i = 0; i < ZOOM_STEPS.length; i++) {
+      var d = Math.abs(ZOOM_STEPS[i] - z);
+      if (d < bd) { bd = d; best = i; }
+    }
+    return best;
+  }
+
+  function zoomStep(dir) {
+    var i = nearestIndex(zoomLevel);
+    if (dir > 0) {
+      if (ZOOM_STEPS[i] <= zoomLevel + 1e-9) i++;
+      if (i > ZOOM_STEPS.length - 1) i = ZOOM_STEPS.length - 1;
+    } else {
+      if (ZOOM_STEPS[i] >= zoomLevel - 1e-9) i--;
+      if (i < 0) i = 0;
+    }
+    setZoom(ZOOM_STEPS[i]);
+  }
+
+  document.getElementById('zoomIn').addEventListener('click', function () { zoomStep(1); });
+  document.getElementById('zoomOut').addEventListener('click', function () { zoomStep(-1); });
+  document.getElementById('zoomReset').addEventListener('click', function () {
+    setZoom(1); toast('缩放已重置为 100%');
+  });
+  zoomLabel.addEventListener('click', function () { setZoom(1); });
+
+  function handleWheel(e) {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    if (e.__zoomHandled) return;
+    e.__zoomHandled = true;
+    e.preventDefault();
+    zoomStep(e.deltaY < 0 ? 1 : -1);
+  }
+
+  function handleZoomKey(e) {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    if (e.__zoomHandled) return;
+    e.__zoomHandled = true;
+    var k = e.key;
+    if (k === '=' || k === '+') { e.preventDefault(); zoomStep(1); }
+    else if (k === '-' || k === '_') { e.preventDefault(); zoomStep(-1); }
+    else if (k === '0') { e.preventDefault(); setZoom(1); }
+  }
+
+  previewPane.addEventListener('wheel', handleWheel, { passive: false });
+  window.addEventListener('keydown', handleZoomKey);
+
+  /* =========================================================
+     六、预览渲染
+     ========================================================= */
+
+  function handleInnerClick(e) {
+    var t = e.target;
+    if (!t || !t.closest) return;
+    if (!t.closest('#btn')) return;
+    e.preventDefault();
+    openFilePicker();
+  }
+
+  function openFilePicker() {
+    filePicker.value = '';
+    filePicker.click();
+  }
+
+  filePicker.addEventListener('change', function () {
+    var f = filePicker.files && filePicker.files[0];
+    if (f) loadFile(f);
+  });
+
+  function installInnerHandlers() {
+    try {
+      var d = iframe.contentDocument;
+      var w = iframe.contentWindow;
+      if (d) {
+        d.addEventListener('wheel', handleWheel, { passive: false });
+        d.addEventListener('click', handleInnerClick, true);
+        // 悬停联动
+        d.addEventListener('mousemove', handleInnerMove, true);
+        d.addEventListener('mouseleave', function () { clearHover(); }, true);
+      }
+      if (w) {
+        w.addEventListener('keydown', handleZoomKey);
+        w.addEventListener('scroll', repositionOutline, true);
+        w.addEventListener('resize', repositionOutline);
+      }
+    } catch (e) { /* 跨域时忽略 */ }
+  }
+
+  function setupErrorHooks(win) {
+    if (!win) return;
+    try {
+      win.addEventListener('error', function (e) {
+        var msg = e && e.message ? e.message : '脚本错误';
+        var pos = e && e.lineno ? '  (行 ' + e.lineno + (e.colno ? ':' + e.colno : '') + ')' : '';
+        showError('❌ ' + msg + pos);
+      }, true);
+
+      win.addEventListener('unhandledrejection', function (e) {
+        var r = e ? e.reason : null;
+        var m = (r && r.message) ? r.message : String(r);
+        showError('❌ 未处理的 Promise 拒绝：' + m);
+      });
+    } catch (err) { /* 忽略 */ }
+  }
+
+  function render() {
+    clearTimeout(renderTimer);
+
+    var code = editor.value;
+    var doc;
+    try {
+      doc = iframe.contentDocument || (iframe.contentWindow && iframe.contentWindow.document);
+    } catch (e) {
+      showError('无法访问预览文档：' + e.message);
+      return;
+    }
+    if (!doc) return;
+
+    clearHover();
+
+    try {
+      hideError();
+      setupErrorHooks(iframe.contentWindow);
+      doc.open();
+      doc.write(code);
+      doc.close();
+      installInnerHandlers();
+      rebuildHoverIndex();     // 重建 DOM ↔ 源码映射
+    } catch (err) {
+      showError('渲染失败：' + err.message);
+    }
+    markDirty(false);
+  }
+
+  setupErrorHooks(iframe.contentWindow);
+  installInnerHandlers();
+
+  /* =========================================================
+     七、刷新调度
+     ========================================================= */
+  var renderTimer = null;
+  var saveTimer = null;
+  var lintTimer = null;
+  var dirty = false;
+
+  function markDirty(v) {
+    dirty = !!v;
+    btnRun.classList.toggle('dirty', dirty);
+  }
+
+  function scheduleRender() {
+    if (!autoToggle.checked) { markDirty(true); return; }
+    clearTimeout(renderTimer);
+    renderTimer = setTimeout(render, RENDER_DELAY);
+  }
+
+  function scheduleSave() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(function () {
+      try { localStorage.setItem(STORAGE_KEY, editor.value); } catch (e) {}
+    }, 400);
+  }
+  function saveNow() {
+    try { localStorage.setItem(STORAGE_KEY, editor.value); } catch (e) {}
+  }
+
+  /* =========================================================
+     八、编辑器事件
+     ========================================================= */
+  editor.addEventListener('scroll', syncScroll, { passive: true });
+
+  editor.addEventListener('input', function () {
+    issueLineMap = null;
+    clearHover();                 // 代码变了，旧的高亮位置失效
+    updateMeta();
+    scheduleHighlight();
+    scheduleSave();
+    scheduleRender();
+    scheduleSearch();
+    scheduleLint();
+  });
+
+  editor.addEventListener('keydown', function (e) {
+    var mod = e.ctrlKey || e.metaKey;
+
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      handleIndent(e.shiftKey);
+      return;
+    }
+    if (mod && (e.key === 's' || e.key === 'S')) {
+      e.preventDefault();
+      render();
+      toast('已刷新预览');
+      return;
+    }
+    if (mod && e.key === 'Enter') {
+      e.preventDefault();
+      render();
+      return;
+    }
+    if (mod && (e.key === 'f' || e.key === 'F')) {
+      e.preventDefault();
+      var sel = editor.value.slice(editor.selectionStart, editor.selectionEnd);
+      if (sel && sel.length < 200 && sel.indexOf('\n') === -1) searchInput.value = sel;
+      openSearch();
+      if (searchInput.value) doSearch();
+      return;
+    }
+    if (e.key === 'Escape' && searchPanel.classList.contains('show')) {
+      closeSearch();
+    }
+  });
+
+  function handleIndent(outdent) {
+    var val = editor.value;
+    var s = editor.selectionStart;
+    var en = editor.selectionEnd;
+
+    var lineStart = val.lastIndexOf('\n', s - 1) + 1;
+    var lineEnd = val.indexOf('\n', en);
+    if (lineEnd === -1) lineEnd = val.length;
+
+    var lines = val.slice(lineStart, lineEnd).split('\n');
+    var changed = outdent
+      ? lines.map(function (l) { return l.replace(/^ {1,2}/, '').replace(/^\t/, ''); })
+      : lines.map(function (l) { return '  ' + l; });
+
+    editor.setSelectionRange(lineStart, lineEnd);
+    var ok = false;
+    try { ok = document.execCommand('insertText', false, changed.join('\n')); } catch (err) {}
+    if (!ok) {
+      var text = changed.join('\n');
+      editor.value = val.slice(0, lineStart) + text + val.slice(lineEnd);
+      editor.setSelectionRange(lineStart, lineStart + text.length);
+    }
+    updateMeta();
+    scheduleHighlight();
+    scheduleSave();
+    scheduleRender();
+    scheduleSearch();
+    scheduleLint();
+  }
+
+  /* =========================================================
+     九、工具栏
+     ========================================================= */
+  btnRun.addEventListener('click', render);
+
+  autoToggle.addEventListener('change', function () {
+    if (autoToggle.checked && dirty) render();
+  });
+
+  hoverToggle.addEventListener('change', function () {
+    if (!hoverToggle.checked) clearHover();
+    toast(hoverToggle.checked ? '已开启悬停定位' : '已关闭悬停定位');
+  });
+
+  document.getElementById('btnClear').addEventListener('click', function () {
+    if (!editor.value.trim() || confirm('确定清空编辑器内容？')) {
+      editor.value = '';
+      issueLineMap = null;
+      clearHover();
+      updateMeta();
+      applyHighlight();
+      saveNow();
+      render();
+      runLint();
+      if (searchPanel.classList.contains('show')) doSearch();
+      editor.focus();
+    }
+  });
+
+  document.getElementById('btnDownload').addEventListener('click', function () {
+    var blob = new Blob([editor.value], { type: 'text/html;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'page.html';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1500);
+    toast('已下载 page.html');
+  });
+
+  document.getElementById('btnCopy').addEventListener('click', function () {
+    var text = editor.value;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text)
+        .then(function () { toast('已复制到剪贴板'); })
+        .catch(function () { fallbackCopy(text); });
+    } else {
+      fallbackCopy(text);
+    }
+  });
+
+  function fallbackCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); toast('已复制到剪贴板'); }
+    catch (e) { toast('复制失败，请手动选择复制'); }
+    document.body.removeChild(ta);
+  }
+
+  document.getElementById('btnFullscreen').addEventListener('click', function () {
+    if (document.fullscreenElement) {
+      document.exitFullscreen();
+    } else if (previewPane.requestFullscreen) {
+      previewPane.requestFullscreen().catch(function () { toast('当前环境不支持全屏'); });
+    }
+  });
+
+  /* =========================================================
+     十、竖向分隔条拖拽
+     ========================================================= */
+  var dragging = false;
+
+  splitter.addEventListener('pointerdown', function (e) {
+    dragging = true;
+    document.body.classList.add('resizing');
+    try { splitter.setPointerCapture(e.pointerId); } catch (err) {}
+    e.preventDefault();
+  });
+
+  splitter.addEventListener('pointermove', function (e) {
+    if (!dragging) return;
+    var rect = mainEl.getBoundingClientRect();
+    var pct = ((e.clientX - rect.left) / rect.width) * 100;
+    pct = Math.max(10, Math.min(90, pct));
+    editorPane.style.flex = '0 0 ' + pct + '%';
+  });
+
+  function endDrag(e) {
+    if (!dragging) return;
+    dragging = false;
+    document.body.classList.remove('resizing');
+    try { splitter.releasePointerCapture(e.pointerId); } catch (err) {}
+  }
+  splitter.addEventListener('pointerup', endDrag);
+  splitter.addEventListener('pointercancel', endDrag);
+
+  splitter.addEventListener('dblclick', function () {
+    editorPane.style.flex = '0 0 50%';
+  });
+
+  /* =========================================================
+     十·B、横向分隔条拖拽（编辑区 / 代码预览区）
+     ========================================================= */
+  var hDragging = false;
+
+  hSplitter.addEventListener('pointerdown', function (e) {
+    hDragging = true;
+    document.body.classList.add('h-resizing');
+    try { hSplitter.setPointerCapture(e.pointerId); } catch (err) {}
+    e.preventDefault();
+  });
+
+  hSplitter.addEventListener('pointermove', function (e) {
+    if (!hDragging) return;
+    var rect = editorPane.getBoundingClientRect();
+    var h = rect.bottom - e.clientY;
+    h = Math.max(60, Math.min(rect.height - 140, h));
+    codePreviewPane.style.flex = '0 0 ' + h + 'px';
+    clearCodeHighlight();
+  });
+
+  function endHDrag(e) {
+    if (!hDragging) return;
+    hDragging = false;
+    document.body.classList.remove('h-resizing');
+    try { hSplitter.releasePointerCapture(e.pointerId); } catch (err) {}
+    clearCodeHighlight();
+  }
+  hSplitter.addEventListener('pointerup', endHDrag);
+  hSplitter.addEventListener('pointercancel', endHDrag);
+
+  hSplitter.addEventListener('dblclick', function () {
+    codePreviewPane.style.flex = '0 0 34%';
+    clearCodeHighlight();
+  });
+
+  /* =========================================================
+     十一、拖拽导入
+     ========================================================= */
+  var dragDepth = 0;
+
+  function hasFiles(e) {
+    var dt = e.dataTransfer;
+    if (!dt) return false;
+    if (dt.types) {
+      for (var i = 0; i < dt.types.length; i++) {
+        if (dt.types[i] === 'Files') return true;
+      }
+    }
+    return false;
+  }
+
+  window.addEventListener('dragenter', function (e) {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    dragDepth++;
+    dropOverlay.classList.add('show');
+  });
+
+  window.addEventListener('dragover', function (e) {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  });
+
+  window.addEventListener('dragleave', function (e) {
+    if (!hasFiles(e)) return;
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (dragDepth === 0) dropOverlay.classList.remove('show');
+  });
+
+  window.addEventListener('drop', function (e) {
+    e.preventDefault();
+    dragDepth = 0;
+    dropOverlay.classList.remove('show');
+    var files = e.dataTransfer && e.dataTransfer.files;
+    if (!files || !files.length) return;
+    loadFile(files[0]);
+  });
+
+  editor.addEventListener('dragover', function (e) { e.preventDefault(); });
+  editor.addEventListener('drop', function (e) { e.preventDefault(); });
+
+  function loadFile(file) {
+    if (file.size > 5 * 1024 * 1024) { toast('文件过大（>5MB），无法导入'); return; }
+    var reader = new FileReader();
+    reader.onload = function () {
+      editor.value = String(reader.result);
+      issueLineMap = null;
+      clearHover();
+      updateMeta();
+      applyHighlight();
+      saveNow();
+      render();
+      runLint();
+      editor.scrollTop = 0;
+      editor.setSelectionRange(0, 0);
+      syncScroll();
+      if (searchPanel.classList.contains('show') && searchInput.value) doSearch();
+      toast('已导入：' + file.name);
+    };
+    reader.onerror = function () { toast('读取文件失败'); };
+    reader.readAsText(file, 'UTF-8');
+  }
+
+  /* =========================================================
+     十二、代码检查引擎
+     ========================================================= */
+
+  var VOID_ELEMENTS = {
+    area:1, base:1, br:1, col:1, embed:1, hr:1, img:1, input:1,
+    link:1, meta:1, param:1, source:1, track:1, wbr:1
+  };
+
+  var SEV_RANK = { error: 0, warning: 1, info: 2 };
+
+  var issues = [];
+
+  function issueAt(list, starts, absPos, sev, msg, src) {
+    var line = lineAt(starts, absPos);
+    list.push({
+      severity: sev,
+      line: line,
+      col: absPos - starts[line - 1] + 1,
+      msg: msg,
+      src: src || 'HTML'
+    });
+  }
+
+  function parseTag(code, start) {
+    var i = start + 1;
+    var n = code.length;
+    var nm = /^([a-zA-Z][a-zA-Z0-9:_-]*)/.exec(code.slice(i));
+    if (!nm) return null;
+
+    var name = nm[1];
+    i += name.length;
+
+    var attrs = [];
+    var selfClose = false;
+
+    while (i < n) {
+      var ch = code.charAt(i);
+      if (/\s/.test(ch)) { i++; continue; }
+      if (ch === '>') { i++; break; }
+      if (ch === '/') {
+        if (code.charAt(i + 1) === '>') { selfClose = true; i += 2; break; }
+        i++;
+        continue;
+      }
+
+      var attrPos = i;
+      var am = /^[^\s=/>]+/.exec(code.slice(i));
+      if (!am) { i++; continue; }
+      var aname = am[0];
+      i += aname.length;
+
+      while (i < n && /\s/.test(code.charAt(i))) i++;
+
+      if (code.charAt(i) === '=') {
+        i++;
+        while (i < n && /\s/.test(code.charAt(i))) i++;
+
+        var q = code.charAt(i);
+        if (q === '"' || q === "'") {
+          var qe = code.indexOf(q, i + 1);
+          if (qe === -1) {
+            return { name: name, attrs: attrs, selfClose: false, end: n,
+                     unclosedQuote: true, pos: start };
+          }
+          attrs.push({ name: aname, value: code.slice(i + 1, qe), pos: attrPos, valuePos: i + 1 });
+          i = qe + 1;
+        } else {
+          var vm = /^[^\s>]*/.exec(code.slice(i));
+          var val = vm ? vm[0] : '';
+          attrs.push({ name: aname, value: val, pos: attrPos, valuePos: i });
+          i += val.length;
+        }
+      } else {
+        attrs.push({ name: aname, value: null, pos: attrPos, valuePos: attrPos });
+      }
+    }
+
+    return { name: name, attrs: attrs, selfClose: selfClose, end: i, pos: start };
+  }
+
+  function lintHTML(code, starts, out) {
+    var i = 0, n = code.length;
+    var stack = [];
+    var ids = Object.create(null);
+    var blocks = [];
+    var hasDoctype = false;
+    var hasHtmlTag = false;
+
+    while (i < n) {
+      var lt = code.indexOf('<', i);
+      if (lt === -1) break;
+
+      if (code.startsWith('<!--', lt)) {
+        var ce = code.indexOf('-->', lt + 4);
+        if (ce === -1) {
+          issueAt(out, starts, lt, 'error', 'HTML 注释未闭合（缺少 “-->”）');
+          break;
+        }
+        i = ce + 3;
+        continue;
+      }
+
+      if (code.charAt(lt + 1) === '!') {
+        var de = code.indexOf('>', lt);
+        if (de === -1) {
+          issueAt(out, starts, lt, 'error', '声明未闭合（缺少 “>”）');
+          break;
+        }
+        if (/^<!doctype\s+html/i.test(code.slice(lt, de + 1))) hasDoctype = true;
+        i = de + 1;
+        continue;
+      }
+
+      if (code.charAt(lt + 1) === '/') {
+        var cm = /^<\/\s*([a-zA-Z][a-zA-Z0-9:_-]*)\s*>/.exec(code.slice(lt));
+        if (!cm) { i = lt + 1; continue; }
+
+        var cname = cm[1].toLowerCase();
+        var idx = -1;
+        for (var k = stack.length - 1; k >= 0; k--) {
+          if (stack[k].name === cname) { idx = k; break; }
+        }
+
+        if (idx === -1) {
+          issueAt(out, starts, lt, 'error', '多余的结束标签 </' + cname + '>');
+        } else {
+          for (var k2 = stack.length - 1; k2 > idx; k2--) {
+            issueAt(out, starts, stack[k2].pos, 'error',
+                    '标签 <' + stack[k2].name + '> 未闭合');
+          }
+          stack.length = idx;
+        }
+        i = lt + cm[0].length;
+        continue;
+      }
+
+      if (/[a-zA-Z]/.test(code.charAt(lt + 1))) {
+        var tag = parseTag(code, lt);
+        if (!tag) { i = lt + 1; continue; }
+
+        var lname = tag.name.toLowerCase();
+
+        if (tag.unclosedQuote) {
+          issueAt(out, starts, lt, 'error', '属性值引号未闭合');
+          i = lt + 1;
+          continue;
+        }
+
+        if (lname === 'html') hasHtmlTag = true;
+
+        var seen = Object.create(null);
+        for (var a = 0; a < tag.attrs.length; a++) {
+          var at = tag.attrs[a];
+          var an = at.name.toLowerCase();
+
+          if (seen[an]) {
+            issueAt(out, starts, at.pos, 'warning', '重复的属性 “' + at.name + '”');
+          }
+          seen[an] = true;
+
+          if (an === 'id' && at.value) {
+            if (ids[at.value] !== undefined) {
+              issueAt(out, starts, at.valuePos, 'warning',
+                      '重复的 id “' + at.value + '”（首次出现于第 ' + ids[at.value] + ' 行）');
+            } else {
+              ids[at.value] = lineAt(starts, at.valuePos);
+            }
+          }
+        }
+
+        if (lname === 'img' && !seen['alt']) {
+          issueAt(out, starts, lt, 'warning', '<img> 缺少 alt 属性');
+        }
+
+        if (lname === 'script' || lname === 'style') {
+          var closeRe = new RegExp('</' + lname + '\\s*>', 'i');
+          var cmatch = closeRe.exec(code.slice(tag.end));
+          if (!cmatch) {
+            issueAt(out, starts, lt, 'error', '未找到 </' + lname + '> 结束标签');
+            i = n;
+            continue;
+          }
+          blocks.push({
+            type: lname,
+            content: code.slice(tag.end, tag.end + cmatch.index),
+            contentPos: tag.end,
+            isModule: /type\s*=\s*["']?module/i.test(code.slice(lt, tag.end))
+          });
+          i = tag.end + cmatch.index + cmatch[0].length;
+          continue;
+        }
+
+        if (!tag.selfClose && !VOID_ELEMENTS[lname]) {
+          stack.push({ name: lname, pos: lt });
+        }
+        i = tag.end;
+        continue;
+      }
+
+      i = lt + 1;
+    }
+
+    for (var s = 0; s < stack.length; s++) {
+      issueAt(out, starts, stack[s].pos, 'error', '标签 <' + stack[s].name + '> 未闭合');
+    }
+
+    if (hasHtmlTag && !hasDoctype) {
+      issueAt(out, starts, 0, 'warning', '缺少 <!DOCTYPE html> 文档类型声明');
+    }
+
+    return blocks;
+  }
+
+  function lintCSS(src, basePos, starts, out) {
+    var i = 0, n = src.length;
+    var stack = [];
+
+    while (i < n) {
+      var c = src.charAt(i);
+
+      if (c === '/' && src.charAt(i + 1) === '*') {
+        var e = src.indexOf('*/', i + 2);
+        if (e === -1) {
+          issueAt(out, starts, basePos + i, 'error', 'CSS 注释未闭合', 'CSS');
+          break;
+        }
+        i = e + 2;
+        continue;
+      }
+
+      if (c === '"' || c === "'") {
+        var j = i + 1, closed = false;
+        while (j < n) {
+          if (src.charAt(j) === '\\') { j += 2; continue; }
+          if (src.charAt(j) === c) { j++; closed = true; break; }
+          j++;
+        }
+        if (!closed) {
+          issueAt(out, starts, basePos + i, 'error', 'CSS 字符串未闭合', 'CSS');
+        }
+        i = j;
+        continue;
+      }
+
+      if (c === '{') { stack.push(i); i++; continue; }
+
+      if (c === '}') {
+        if (!stack.length) {
+          issueAt(out, starts, basePos + i, 'error', '多余的 “}”', 'CSS');
+        } else {
+          var openPos = stack.pop();
+          if (!src.slice(openPos + 1, i).trim()) {
+            issueAt(out, starts, basePos + openPos, 'info', '空的规则块 { }', 'CSS');
+          }
+        }
+        i++;
+        continue;
+      }
+
+      i++;
+    }
+
+    for (var k = 0; k < stack.length; k++) {
+      issueAt(out, starts, basePos + stack[k], 'error', '缺少闭合的 “}”', 'CSS');
+    }
+  }
+
+  function lintJS(src, basePos, starts, out, isModule) {
+    var i = 0, n = src.length;
+    var stack = [];
+    var unbalanced = false;
+
+    function pushAt(sev, pos, msg) {
+      issueAt(out, starts, basePos + pos, sev, msg, 'JS');
+    }
+
+    while (i < n) {
+      var c = src.charAt(i);
+
+      if (c === '/' && src.charAt(i + 1) === '/') {
+        var e = src.indexOf('\n', i);
+        i = (e === -1) ? n : e;
+        continue;
+      }
+      if (c === '/' && src.charAt(i + 1) === '*') {
+        var e2 = src.indexOf('*/', i + 2);
+        if (e2 === -1) {
+          pushAt('error', i, 'JS 块注释未闭合');
+          unbalanced = true;
+          break;
+        }
+        i = e2 + 2;
+        continue;
+      }
+
+      if (c === '"' || c === "'") {
+        var j = i + 1, closed = false;
+        while (j < n) {
+          var cj = src.charAt(j);
+          if (cj === '\\') { j += 2; continue; }
+          if (cj === '\n') break;
+          if (cj === c) { j++; closed = true; break; }
+          j++;
+        }
+        if (!closed) {
+          pushAt('error', i, '字符串引号未闭合');
+          unbalanced = true;
+        }
+        i = j;
+        continue;
+      }
+
+      if (c === '`') {
+        var j2 = i + 1, closed2 = false;
+        while (j2 < n) {
+          var cj2 = src.charAt(j2);
+          if (cj2 === '\\') { j2 += 2; continue; }
+          if (cj2 === '`') { j2++; closed2 = true; break; }
+          j2++;
+        }
+        if (!closed2) {
+          pushAt('error', i, '模板字符串未闭合');
+          unbalanced = true;
+        }
+        i = j2;
+        continue;
+      }
+
+      if (c === '(' || c === '[' || c === '{') {
+        stack.push({ ch: c, pos: i });
+        i++;
+        continue;
+      }
+      if (c === ')' || c === ']' || c === '}') {
+        var expect = (c === ')') ? '(' : (c === ']') ? '[' : '{';
+        var found = -1;
+        for (var k = stack.length - 1; k >= 0; k--) {
+          if (stack[k].ch === expect) { found = k; break; }
+        }
+        if (found === -1) {
+          pushAt('error', i, '多余的 “' + c + '”');
+          unbalanced = true;
+        } else {
+          for (var k2 = stack.length - 1; k2 > found; k2--) {
+            pushAt('error', stack[k2].pos, '“' + stack[k2].ch + '” 未闭合');
+            unbalanced = true;
+          }
+          stack.length = found;
+        }
+        i++;
+        continue;
+      }
+
+      if (/[A-Za-z_$]/.test(c)) {
+        var wm = /^[A-Za-z0-9_$]+/.exec(src.slice(i));
+        var w = wm[0];
+        if (w === 'var') {
+          pushAt('info', i, '建议使用 let / const 代替 var');
+        } else if (w === 'debugger') {
+          pushAt('warning', i, '存在 debugger 语句，发布前请移除');
+        }
+        i += w.length;
+        continue;
+      }
+
+      if (c === '=' && src.charAt(i + 1) === '=' && src.charAt(i + 2) !== '=') {
+        pushAt('info', i, '建议使用 “===” 严格相等');
+        i += 2;
+        continue;
+      }
+      if (c === '!' && src.charAt(i + 1) === '=' && src.charAt(i + 2) !== '=') {
+        pushAt('info', i, '建议使用 “!==” 严格不等');
+        i += 2;
+        continue;
+      }
+
+      i++;
+    }
+
+    for (var s = 0; s < stack.length; s++) {
+      pushAt('error', stack[s].pos, '“' + stack[s].ch + '” 未闭合');
+      unbalanced = true;
+    }
+
+    if (!unbalanced && !isModule && src.trim()) {
+      try {
+        // eslint-disable-next-line no-new-func
+        new Function(src);
+      } catch (e) {
+        if (e && e.name === 'SyntaxError') {
+          var m = String(e.message).replace(/^SyntaxError:\s*/, '');
+          pushAt('error', 0, 'JS 语法错误：' + m);
+        }
+      }
+    }
+  }
+
+  function runLint() {
+    var code = editor.value;
+    issues = [];
+
+    if (code.length > LINT_LIMIT) {
+      issues.push({
+        severity: 'info', line: 1, col: 1, src: 'SYS',
+        msg: '文件过大，已跳过格式检查（超过 ' + Math.round(LINT_LIMIT / 1000) + 'K 字符）'
+      });
+      finishLint();
+      return;
+    }
+
+    if (code.trim()) {
+      var starts = buildLineStarts(code);
+      try {
+        var blocks = lintHTML(code, starts, issues);
+        for (var b = 0; b < blocks.length; b++) {
+          var blk = blocks[b];
+          if (blk.type === 'style') {
+            lintCSS(blk.content, blk.contentPos, starts, issues);
+          } else if (blk.type === 'script') {
+            lintJS(blk.content, blk.contentPos, starts, issues, blk.isModule);
+          }
+        }
+      } catch (err) {
+        issues.push({
+          severity: 'info', line: 1, col: 1, src: 'SYS',
+          msg: '检查器内部错误：' + err.message
+        });
+      }
+    }
+
+    finishLint();
+  }
+
+  function finishLint() {
+    issues.sort(function (a, b) {
+      if (a.line !== b.line) return a.line - b.line;
+      if (a.col !== b.col) return a.col - b.col;
+      return SEV_RANK[a.severity] - SEV_RANK[b.severity];
+    });
+
+    if (issues.length > MAX_ISSUES) issues.length = MAX_ISSUES;
+
+    renderIssues();
+    applyIssueMarks();
+  }
+
+  function applyIssueMarks() {
+    issueLineMap = Object.create(null);
+    for (var i = 0; i < issues.length; i++) {
+      var it = issues[i];
+      if (it.src === 'SYS') continue;
+      var cur = issueLineMap[it.line];
+      if (cur === undefined || SEV_RANK[it.severity] < SEV_RANK[cur]) {
+        issueLineMap[it.line] = it.severity;
+      }
+    }
+    updateMeta();
+  }
+
+  var SEV_ICON = { error: '✕', warning: '!', info: 'i' };
+
+  function renderIssues() {
+    var errs = 0, warns = 0, infos = 0;
+    for (var i = 0; i < issues.length; i++) {
+      var s = issues[i].severity;
+      if (s === 'error') errs++;
+      else if (s === 'warning') warns++;
+      else infos++;
+    }
+
+    var html = '';
+    if (!issues.length) {
+      html = '<div class="issue-empty">✓ 未发现问题，代码看起来不错</div>';
+    } else {
+      for (var k = 0; k < issues.length; k++) {
+        var it = issues[k];
+        html += '<div class="issue-item sev-' + it.severity + '"' +
+                  ' data-line="' + it.line + '" data-col="' + it.col + '">' +
+                  '<span class="ii-icon">' + SEV_ICON[it.severity] + '</span>' +
+                  '<span class="ii-line">' + it.line + ':' + it.col + '</span>' +
+                  '<span class="ii-src">' + it.src + '</span>' +
+                  '<span class="ii-msg">' + escapeHtml(it.msg) + '</span>' +
+                '</div>';
+      }
+    }
+    issueList.innerHTML = html;
+
+    var parts = [];
+    if (errs)  parts.push(errs + ' 个错误');
+    if (warns) parts.push(warns + ' 个警告');
+    if (infos) parts.push(infos + ' 个提示');
+
+    issueSummary.textContent = parts.length ? parts.join(' · ') : '未发现问题';
+    issueSummary.className = errs ? 'has-error' : (warns ? 'has-warning' : 'ok');
+
+    var total = errs + warns + infos;
+    btnLint.textContent = total ? '⚑ 检查 (' + total + ')' : '⚑ 检查';
+    btnLint.classList.toggle('lint-error', errs > 0);
+    btnLint.classList.toggle('lint-warning', errs === 0 && warns > 0);
+    btnLint.classList.toggle('lint-ok', errs === 0 && warns === 0);
+  }
+
+  function gotoLineCol(line, col) {
+    var text = editor.value;
+    var starts = buildLineStarts(text);
+    var lineStart = starts[line - 1];
+    if (lineStart === undefined) lineStart = text.length;
+    var pos = Math.min(text.length, Math.max(0, lineStart + (col - 1)));
+
+    editor.focus();
+    editor.setSelectionRange(pos, pos);
+    scrollToLine(line);
+  }
+
+  function scheduleLint() {
+    clearTimeout(lintTimer);
+    lintTimer = setTimeout(runLint, LINT_DELAY);
+  }
+
+  btnLint.addEventListener('click', function () {
+    if (issuePanel.classList.contains('show')) {
+      issuePanel.classList.remove('show');
+    } else {
+      issuePanel.classList.add('show');
+      runLint();
+    }
+  });
+
+  btnRecheck.addEventListener('click', function () {
+    runLint();
+    toast('已重新检查');
+  });
+
+  ipClose.addEventListener('click', function () {
+    issuePanel.classList.remove('show');
+    editor.focus();
+  });
+
+  issueList.addEventListener('click', function (e) {
+    var item = e.target.closest ? e.target.closest('.issue-item') : null;
+    if (!item) return;
+    var line = parseInt(item.getAttribute('data-line'), 10);
+    var col  = parseInt(item.getAttribute('data-col'), 10) || 1;
+    if (!isNaN(line)) gotoLineCol(line, col);
+  });
+
+  /* =========================================================
+     十三、【核心新增】悬停联动：预览 DOM ↔ 源码 双向定位
+     ========================================================= */
+
+  /* ---------- 13.1 源码标签索引 ---------- */
+  function buildTagIndex(code) {
+    var tags = [];
+    var i = 0, n = code.length;
+
+    while (i < n) {
+      var lt = code.indexOf('<', i);
+      if (lt === -1) break;
+
+      // 注释
+      if (code.startsWith('<!--', lt)) {
+        var ce = code.indexOf('-->', lt + 4);
+        i = (ce === -1) ? n : ce + 3;
+        continue;
+      }
+      // 声明 <!DOCTYPE ...>
+      if (code.charAt(lt + 1) === '!') {
+        var de = code.indexOf('>', lt);
+        i = (de === -1) ? n : de + 1;
+        continue;
+      }
+
+      // 结束标签
+      if (code.charAt(lt + 1) === '/') {
+        var cm = /^<\/\s*([a-zA-Z][a-zA-Z0-9:_-]*)\s*>/.exec(code.slice(lt));
+        if (!cm) { i = lt + 1; continue; }
+        tags.push({
+          name: cm[1].toLowerCase(),
+          start: lt,
+          end: lt + cm[0].length,
+          isClose: true,
+          selfClose: false
+        });
+        i = lt + cm[0].length;
+        continue;
+      }
+
+      // 开始标签
+      if (/[a-zA-Z]/.test(code.charAt(lt + 1))) {
+        var tag = parseTag(code, lt);
+        if (!tag) { i = lt + 1; continue; }
+
+        var lname = tag.name.toLowerCase();
+        tags.push({
+          name: lname,
+          start: lt,
+          end: tag.end,
+          isClose: false,
+          selfClose: !!tag.selfClose
+        });
+
+        // script / style：跳过内容，只记录闭合标签
+        if (lname === 'script' || lname === 'style') {
+          var closeRe = new RegExp('<\\/' + lname + '\\s*>', 'i');
+          var cMatch = closeRe.exec(code.slice(tag.end));
+          if (cMatch) {
+            var cStart = tag.end + cMatch.index;
+            tags.push({
+              name: lname,
+              start: cStart,
+              end: cStart + cMatch[0].length,
+              isClose: true,
+              selfClose: false
+            });
+            i = cStart + cMatch[0].length;
+          } else {
+            i = n;
+          }
+          continue;
+        }
+
+        i = tag.end;
+        continue;
+      }
+
+      i = lt + 1;
+    }
+
+    for (var k = 0; k < tags.length; k++) tags[k].idx = k;
+    return tags;
+  }
+
+  /* ---------- 13.2 找某个开始标签对应的整段源码范围 ---------- */
+  function findElementRange(tags, idx) {
+    var tag = tags[idx];
+    if (!tag) return null;
+
+    var result = { start: tag.start, end: tag.end };
+
+    if (tag.selfClose) return result;
+    if (VOID_ELEMENTS[tag.name]) return result;
+
+    var depth = 0;
+    for (var i = idx + 1; i < tags.length; i++) {
+      var t = tags[i];
+      if (t.isClose) {
+        if (t.name === tag.name) {
+          if (depth === 0) {
+            result.end = t.end;
+            return result;
+          }
+          depth--;
+        }
+      } else if (!t.selfClose && !VOID_ELEMENTS[t.name]) {
+        if (t.name === tag.name) depth++;
+      }
+    }
+    return result;   // 未找到闭合标签，只高亮开始标签
+  }
+
+  /* ---------- 13.3 DOM 元素 ↔ 源码标签 映射 ---------- */
+  var tagIndexCache = [];       // 源码标签数组
+  var domTagMap = null;         // Map<Element, tag>
+  var clickableCache = null;    // WeakMap<Element, boolean>
+
+  function mapDomToTags(doc, tags) {
+    var map = new Map();
+    if (!doc || !doc.documentElement) return map;
+
+    // 按文档顺序收集所有元素
+    var all = [];
+    (function walk(node) {
+      var c = node.firstElementChild;
+      while (c) {
+        all.push(c);
+        walk(c);
+        c = c.nextElementSibling;
+      }
+    })(doc.documentElement);
+
+    var ti = 0;
+    for (var i = 0; i < all.length; i++) {
+      var el = all[i];
+      var name = el.tagName ? el.tagName.toLowerCase() : '';
+      if (!name) continue;
+
+      // 在源码标签里向后找同名的开始标签（限制前瞻窗口，避免错位失控）
+      var found = -1;
+      var limit = Math.min(tags.length, ti + 60);
+      for (var k = ti; k < limit; k++) {
+        if (!tags[k].isClose && tags[k].name === name) { found = k; break; }
+      }
+      if (found !== -1) {
+        map.set(el, tags[found]);
+        ti = found + 1;
+      }
+    }
+    return map;
+  }
+
+  function rebuildHoverIndex() {
+    try {
+      tagIndexCache = buildTagIndex(editor.value);
+      clickableCache = new WeakMap();
+      domTagMap = mapDomToTags(iframe.contentDocument, tagIndexCache);
+    } catch (e) {
+      tagIndexCache = [];
+      domTagMap = new Map();
+      clickableCache = new WeakMap();
+    }
+  }
+
+  /* ---------- 13.4 判断元素是否“可点击” ---------- */
+  function computeClickable(el, win) {
+    var tag = el.tagName ? el.tagName.toLowerCase() : '';
+    if (!tag || tag === 'body' || tag === 'html') return false;
+
+    if (tag === 'a') return el.hasAttribute('href');
+    if (tag === 'button' || tag === 'select' || tag === 'textarea' ||
+        tag === 'summary' || tag === 'label' || tag === 'option') return true;
+    if (tag === 'input') {
+      var t = (el.getAttribute('type') || 'text').toLowerCase();
+      return t !== 'hidden';
+    }
+    if (el.hasAttribute('onclick')) return true;
+
+    var role = (el.getAttribute('role') || '').toLowerCase();
+    if (role === 'button' || role === 'link' || role === 'tab' ||
+        role === 'menuitem' || role === 'checkbox' || role === 'radio') return true;
+
+    var ti = el.getAttribute('tabindex');
+    if (ti !== null && ti !== '-1') return true;
+
+    try {
+      if (win && win.getComputedStyle(el).cursor === 'pointer') return true;
+    } catch (e) { /* ignore */ }
+
+    return false;
+  }
+
+  function isClickableEl(el, win) {
+    if (!el || el.nodeType !== 1) return false;
+    if (!clickableCache) clickableCache = new WeakMap();
+    if (clickableCache.has(el)) return clickableCache.get(el);
+    var r = computeClickable(el, win);
+    clickableCache.set(el, r);
+    return r;
+  }
+
+  function findClickableAncestor(el, doc) {
+    var win = iframe.contentWindow;
+    var node = el;
+    var guard = 0;
+    while (node && node.nodeType === 1 && guard++ < 24) {
+      if (node === doc.body || node === doc.documentElement) return null;
+      if (isClickableEl(node, win)) return node;
+      node = node.parentElement;
+    }
+    return null;
+  }
+
+  /* ---------- 13.5 预览区虚线描边 ---------- */
+  var hoverEl = null;
+  var outlineEl = null;
+
+  function setImp(el, prop, val) {
+    try { el.style.setProperty(prop, val, 'important'); }
+    catch (e) { el.style[prop] = val; }
+  }
+
+  function ensureOutline(doc) {
+    if (outlineEl && outlineEl.isConnected && outlineEl.ownerDocument === doc) {
+      return outlineEl;
+    }
+    outlineEl = doc.createElement('div');
+    outlineEl.setAttribute('data-hover-outline', '1');
+    setImp(outlineEl, 'position', 'fixed');
+    setImp(outlineEl, 'pointer-events', 'none');
+    setImp(outlineEl, 'z-index', '2147483647');
+    setImp(outlineEl, 'border', '2px dashed #4c8dff');
+    setImp(outlineEl, 'border-radius', '3px');
+    setImp(outlineEl, 'background', 'rgba(76,141,255,.10)');
+    setImp(outlineEl, 'box-shadow', '0 0 0 1px rgba(76,141,255,.45), 0 0 14px rgba(76,141,255,.45)');
+    setImp(outlineEl, 'box-sizing', 'border-box');
+    setImp(outlineEl, 'margin', '0');
+    setImp(outlineEl, 'padding', '0');
+    setImp(outlineEl, 'transition', 'left .06s ease-out, top .06s ease-out, width .06s ease-out, height .06s ease-out');
+    setImp(outlineEl, 'display', 'block');
+    setImp(outlineEl, 'left', '0px');
+    setImp(outlineEl, 'top', '0px');
+    setImp(outlineEl, 'width', '0px');
+    setImp(outlineEl, 'height', '0px');
+
+    var host = doc.body || doc.documentElement;
+    if (host) host.appendChild(outlineEl);
+    return outlineEl;
+  }
+
+  function repositionOutline() {
+    if (!hoverEl) return;
+    var doc = iframe.contentDocument;
+    if (!doc || !hoverEl.isConnected) { clearHover(); return; }
+
+    var ov = ensureOutline(doc);
+    var r = hoverEl.getBoundingClientRect();
+    ov.style.setProperty('left',   r.left + 'px', 'important');
+    ov.style.setProperty('top',    r.top + 'px', 'important');
+    ov.style.setProperty('width',  Math.max(0, r.width) + 'px', 'important');
+    ov.style.setProperty('height', Math.max(0, r.height) + 'px', 'important');
+  }
+
+  function hideOutline() {
+    if (outlineEl && outlineEl.isConnected) {
+      try { outlineEl.parentNode.removeChild(outlineEl); } catch (e) {}
+    }
+    outlineEl = null;
+  }
+
+  /* ---------- 13.6 预览区 DOM → 源码：鼠标移动 ---------- */
+  var movePending = false;
+  var lastMoveEvt = null;
+
+  function handleInnerMove(e) {
+    lastMoveEvt = e;
+    if (movePending) return;
+    movePending = true;
+    requestAnimationFrame(function () {
+      movePending = false;
+      processInnerMove(lastMoveEvt);
+    });
+  }
+
+  function processInnerMove(e) {
+    if (!e) return;
+    if (!hoverToggle.checked) { clearHover(); return; }
+
+    var doc = iframe.contentDocument;
+    if (!doc) return;
+
+    var t = e.target;
+    if (!t) { clearHover(); return; }
+    if (t.nodeType !== 1) t = t.parentElement;
+    if (!t || t.nodeType !== 1) { clearHover(); return; }
+
+    var clickable = findClickableAncestor(t, doc);
+    if (clickable === hoverEl) {
+      if (hoverEl) repositionOutline();
+      return;
+    }
+    setHover(clickable);
+  }
+
+  function setHover(el) {
+    hideOutline();
+    hoverEl = el;
+    clearCodeHighlight();
+
+    if (!el) return;
+
+    repositionOutline();
+
+    // 找到源码标签
+    if (!domTagMap) return;
+    var tag = domTagMap.get(el);
+    if (!tag) return;
+
+    var range = findElementRange(tagIndexCache, tag.idx);
+    if (!range) return;
+
+    showCodeHighlight(range.start, range.end);
+  }
+
+  function clearHover() {
+    hoverEl = null;
+    hideOutline();
+    clearCodeHighlight();
+  }
+
+  /* ---------- 13.7 代码预览区：虚线框选中对应代码 ---------- */
+  function measureWidth(text) {
+    if (!text) return 0;
+    cpMeasure.textContent = text;
+    var w = cpMeasure.getBoundingClientRect().width;
+    cpMeasure.textContent = '';
+    return w;
+  }
+
+  function clearCodeHighlight() {
+    if (codePreviewOverlay) codePreviewOverlay.innerHTML = '';
+  }
+
+  function showCodeHighlight(start, end) {
+    if (!codePreviewOverlay) return;
+    codePreviewOverlay.innerHTML = '';
+    if (start == null || end == null || end <= start) return;
+
+    var code = editor.value;
+    if (start >= code.length) return;
+
+    var starts = buildLineStarts(code);
+    var lines = code.split('\n');
+
+    var startLine = lineOfOffset(starts, start);
+    var endLine = lineOfOffset(starts, Math.min(code.length - 1, Math.max(start, end - 1)));
+    if (endLine - startLine > 200) endLine = startLine + 200;   // 安全上限
+
+    // 先把目标滚进视野
+    var topY = CP_PAD + startLine * CP_LINE_H;
+    var botY = CP_PAD + (endLine + 1) * CP_LINE_H;
+    var viewH = codePreviewScroll.clientHeight;
+    var curTop = codePreviewScroll.scrollTop;
+
+    if (topY < curTop + 16 || botY > curTop + viewH - 16) {
+      var target = topY - Math.max(0, viewH / 3);
+      if (target < 0) target = 0;
+      codePreviewScroll.scrollTop = target;
+      curTop = target;
+    }
+
+    var frag = document.createDocumentFragment();
+
+    for (var L = startLine; L <= endLine && L < lines.length; L++) {
+      var lineStart = starts[L];
+      var lineText = lines[L] || '';
+      var lineEnd = lineStart + lineText.length;
+
+      var s = Math.max(start, lineStart);
+      var e = Math.min(end, lineEnd);
+      if (e < s) e = s;
+
+      var colS = s - lineStart;
+      var colE = e - lineStart;
+
+      var x = CP_PAD + measureWidth(lineText.slice(0, colS));
+      var w = measureWidth(lineText.slice(colS, colE));
+      if (w < 7) w = 7;
+
+      var y = CP_PAD + L * CP_LINE_H - curTop;
+
+      if (y + CP_LINE_H < -20 || y > viewH + 20) continue;
+
+      var box = document.createElement('div');
+      box.className = 'cp-hl';
+      box.style.left   = x + 'px';
+      box.style.top    = y + 'px';
+      box.style.width  = w + 'px';
+      box.style.height = CP_LINE_H + 'px';
+      frag.appendChild(box);
+    }
+
+    codePreviewOverlay.appendChild(frag);
+  }
+
+  /* 鼠标离开预览 iframe 时清理 */
+  previewPane.addEventListener('mouseleave', function () { clearHover(); });
+  codePreviewScroll.addEventListener('scroll', function () {
+    // 代码预览区自身滚动时，重新按新的 scrollTop 绘制高亮
+    if (hoverEl) {
+      if (!domTagMap) return;
+      var tag = domTagMap.get(hoverEl);
+      if (!tag) return;
+      var range = findElementRange(tagIndexCache, tag.idx);
+      if (range) showCodeHighlight(range.start, range.end);
+    }
+  }, { passive: true });
+
+  /* =========================================================
+     十四、初始化
+     ========================================================= */
+  function init() {
+    var savedZoom = NaN;
+    try { savedZoom = parseFloat(localStorage.getItem(ZOOM_KEY)); } catch (e) {}
+    if (isFinite(savedZoom) && savedZoom > 0) {
+      zoomLevel = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, savedZoom));
+    }
+    applyZoom();
+
+    var saved = null;
+    try { saved = localStorage.getItem(STORAGE_KEY); } catch (e) {}
+    editor.value = (saved !== null && saved !== '') ? saved : DEFAULT_CODE;
+
+    issueLineMap = null;
+    updateMeta();
+    applyHighlight();
+    markDirty(false);
+    render();
+
+    runLint();
+
+    editor.focus();
+    editor.setSelectionRange(0, 0);
+    editor.scrollTop = 0;
+    syncScroll();
+  }
+
+  window.addEventListener('beforeunload', saveNow);
+
+  init();
+})();
+</script>
+</body>
+</html>

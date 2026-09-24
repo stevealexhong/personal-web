@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>独特的Steve_Alex</title>
+<meta name="description" content="Steve_Alex — 关于代码、光影、双手、音乐与脚步">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&family=Noto+Serif+SC:wght@700&display=swap">
+<style>
+  /* ===== 设计变量（与主页完全一致） ===== */
+  :root {
+    --bg: #F6F2FC;
+    --bg-cool: #EDE6F9;
+    --ink: #2A2438;
+    --ink-soft: #5E5674;
+    --ink-faint: #8D85A3;
+    --card: rgba(255, 255, 255, 0.52);
+    --card-strong: rgba(255, 255, 255, 0.68);
+    --card-border: rgba(255, 255, 255, 0.85);
+    --accent: #8B6FD4;
+    --accent-soft: rgba(139, 111, 212, 0.14);
+    --accent-2: #B79CF0;
+    --radius-lg: 28px;
+    --radius-md: 20px;
+    --radius-sm: 14px;
+    --shadow-card: 0 12px 40px rgba(105, 85, 160, 0.10);
+    --shadow-float: 0 20px 50px rgba(105, 85, 160, 0.16);
+    --font-serif: "Noto Serif SC", "Songti SC", "STSong", Georgia, serif;
+    --font-sans: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    font-family: var(--font-sans);
+    font-weight: 400;
+    color: var(--ink);
+    background:
+      linear-gradient(rgba(249, 246, 254, 0.78), rgba(237, 230, 249, 0.82)),
+      url("dabeijing.png") center center / cover no-repeat,
+      linear-gradient(165deg, #FBF9FE 0%, var(--bg) 38%, var(--bg-cool) 100%);
+    background-attachment: fixed, fixed, fixed;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ===== 布局骨架 ===== */
+  .page { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+  section { padding: 72px 0 8px; }
+  .kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin: 0 0 10px;
+  }
+  .kicker::before {
+    content: "";
+    width: 22px; height: 2px;
+    border-radius: 2px;
+    background: var(--accent);
+  }
+  .section-title {
+    font-family: var(--font-serif);
+    font-weight: 700;
+    font-size: clamp(24px, 3.2vw, 32px);
+    line-height: 1.3;
+    margin: 0;
+  }
+  .section-desc {
+    color: var(--ink-soft);
+    font-size: 15px;
+    max-width: 560px;
+    margin: 10px 0 0;
+  }
+
+  /* ===== 毛玻璃与按钮 ===== */
+  .glass {
+    background: var(--card);
+    -webkit-backdrop-filter: blur(22px) saturate(1.4);
+    backdrop-filter: blur(22px) saturate(1.4);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 13px 26px;
+    border-radius: 999px;
+    font-family: var(--font-sans);
+    font-size: 15px;
+    font-weight: 500;
+    line-height: 1;
+    text-decoration: none;
+    cursor: pointer;
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    background: rgba(255, 255, 255, 0.5);
+    -webkit-backdrop-filter: blur(16px) saturate(1.4);
+    backdrop-filter: blur(16px) saturate(1.4);
+    color: var(--ink);
+    box-shadow: 0 8px 24px rgba(105, 85, 160, 0.10);
+    transition: transform 0.22s ease, box-shadow 0.22s ease, background 0.22s ease, color 0.22s ease;
+  }
+  .btn svg { width: 17px; height: 17px; flex: none; }
+  .btn:hover {
+    transform: translateY(-2px);
+    background: rgba(255, 255, 255, 0.72);
+    box-shadow: 0 14px 30px rgba(105, 85, 160, 0.16);
+  }
+  .btn:active { transform: translateY(0); }
+  .btn-primary {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-color: rgba(139, 111, 212, 0.28);
+  }
+  .btn-primary:hover { background: rgba(139, 111, 212, 0.24); color: #6E52BE; }
+  a:focus-visible, button:focus-visible {
+    outline: 3px solid rgba(139, 111, 212, 0.45);
+    outline-offset: 3px;
+    border-radius: 999px;
+  }
+
+  /* ===== 顶部导航 ===== */
+  .nav {
+    position: sticky;
+    top: 16px;
+    z-index: 50;
+    margin-top: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 10px 12px 10px 18px;
+  }
+  .nav-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+    color: var(--ink);
+    font-weight: 600;
+    font-size: 15px;
+  }
+  .nav-logo {
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-family: var(--font-serif);
+    font-weight: 700;
+    font-size: 15px;
+    color: #fff;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    box-shadow: 0 4px 12px rgba(139, 111, 212, 0.35);
+  }
+  .nav-right { display: flex; align-items: center; gap: 10px; }
+  .nav .btn { padding: 10px 20px; font-size: 14px; }
+
+  /* ===== Hero ===== */
+  .hero {
+    padding: 80px 0 0;
+    text-align: center;
+  }
+  .hero h1 {
+    font-family: var(--font-serif);
+    font-weight: 700;
+    font-size: clamp(30px, 4.8vw, 48px);
+    line-height: 1.25;
+    margin: 0 0 16px;
+    animation: rise-in 1.15s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .hero h1 .hl { color: var(--accent); }
+  .hero-sub {
+    max-width: 600px;
+    margin: 0 auto 28px;
+    color: var(--ink-soft);
+    font-size: clamp(15px, 2vw, 17px);
+    font-weight: 300;
+    animation: rise-in 1.15s cubic-bezier(0.16, 1, 0.3, 1) 0.14s both;
+  }
+  .hero-rule {
+    width: 60px; height: 3px;
+    border-radius: 3px;
+    margin: 40px auto 0;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    opacity: 0.6;
+  }
+
+  /* ===== 爱好卡片 · 错位双列布局 ===== */
+  .hobby-grid {
+    display: flex;
+    align-items: flex-start;
+    gap: 22px;
+  }
+  .hobby-col {
+    flex: 1 1 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+  }
+  /* 右列整体下沉，制造错位感 */
+  .hobby-col--offset {
+    margin-top: 76px;
+  }
+  /* 左列第二张再微微内缩一点，错落更自然 */
+  .hobby-col--offset .hobby-card:nth-child(2) {
+    margin-top: 0;
+  }
+
+  .hobby-card {
+    padding: 38px 38px 36px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    transition: transform 0.24s ease, box-shadow 0.24s ease;
+  }
+  .hobby-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-float);
+  }
+  .hobby-icon {
+    width: 50px; height: 50px;
+    border-radius: var(--radius-sm);
+    display: grid;
+    place-items: center;
+    color: var(--accent);
+    background: var(--accent-soft);
+    margin-bottom: 18px;
+  }
+  .hobby-icon svg { width: 24px; height: 24px; }
+  .hobby-card h3 {
+    font-family: var(--font-serif);
+    font-size: 21px;
+    font-weight: 700;
+    margin: 0 0 6px;
+  }
+  .hobby-tagline {
+    font-size: 13px;
+    color: var(--accent);
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    margin: 0 0 16px;
+  }
+  .hobby-card p {
+    color: var(--ink-soft);
+    font-size: 15px;
+    line-height: 1.9;
+    margin: 0 0 14px;
+  }
+  .hobby-card p:last-of-type { margin-bottom: 18px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    display: inline-block;
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ink-soft);
+    background: rgba(255, 255, 255, 0.6);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.9);
+  }
+  .chip.highlight {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-color: rgba(139, 111, 212, 0.25);
+  }
+  .pull-quote {
+    border-left: 3px solid var(--accent);
+    padding: 4px 0 4px 20px;
+    margin: 20px 0 0;
+    font-family: var(--font-serif);
+    font-size: 16px;
+    line-height: 1.8;
+    color: var(--accent);
+  }
+
+  /* ===== 特长数据条 ===== */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 18px;
+    margin-top: 22px;
+  }
+  .stat-mini {
+    text-align: center;
+    padding: 26px 16px;
+  }
+  .stat-mini b {
+    display: block;
+    font-family: var(--font-serif);
+    font-size: 30px;
+    font-weight: 700;
+    color: var(--accent);
+    line-height: 1.2;
+  }
+  .stat-mini span {
+    display: block;
+    margin-top: 6px;
+    color: var(--ink-soft);
+    font-size: 13px;
+  }
+
+  /* ===== 结尾 ===== */
+  .ending {
+    text-align: center;
+    padding: 56px 40px;
+    background: var(--card-strong);
+  }
+  .ending h2 {
+    font-family: var(--font-serif);
+    font-size: clamp(22px, 3vw, 30px);
+    font-weight: 700;
+    margin: 0 0 14px;
+  }
+  .ending > p {
+    color: var(--ink-soft);
+    font-size: 15px;
+    max-width: 480px;
+    margin: 0 auto 28px;
+  }
+  .ending-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 14px;
+  }
+
+  /* ===== 页脚 ===== */
+  .footer {
+    padding: 56px 0 40px;
+    text-align: center;
+    color: var(--ink-faint);
+    font-size: 13px;
+  }
+  .footer .nav-brand { margin-bottom: 8px; justify-content: center; }
+  .footer .brand-text { font-size: 14px; color: var(--ink-soft); }
+  .footer p { margin: 0; }
+
+  /* ===== 返回顶部 ===== */
+  .to-top {
+    position: fixed;
+    right: 28px;
+    bottom: 28px;
+    z-index: 60;
+    width: 50px;
+    height: 50px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.85);
+    background: rgba(255, 255, 255, 0.55);
+    -webkit-backdrop-filter: blur(18px) saturate(1.4);
+    backdrop-filter: blur(18px) saturate(1.4);
+    color: var(--accent);
+    box-shadow: 0 10px 30px rgba(105, 85, 160, 0.16);
+    cursor: pointer;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(14px) scale(0.92);
+    transition: opacity 0.3s ease, transform 0.3s ease, visibility 0.3s ease, background 0.2s ease, box-shadow 0.2s ease;
+  }
+  .to-top svg { width: 22px; height: 22px; }
+  .to-top:hover {
+    background: rgba(255, 255, 255, 0.78);
+    box-shadow: 0 14px 34px rgba(105, 85, 160, 0.22);
+    transform: translateY(-2px) scale(1);
+  }
+  .to-top.is-show { opacity: 1; visibility: visible; transform: translateY(0) scale(1); }
+
+  /* ===== 动画 ===== */
+  @keyframes rise-in {
+    from { opacity: 0; transform: translateY(34px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .reveal-ready [data-reveal] { opacity: 0; }
+  .reveal-ready [data-reveal].is-visible {
+    animation: fly-in 1.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: var(--reveal-delay, 0ms);
+  }
+  @keyframes fly-in {
+    from { opacity: 0; translate: 0 46px; scale: 0.975; }
+    to { opacity: 1; translate: 0 0; scale: 1; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-delay: 0s !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      transition-delay: 0s !important;
+    }
+  }
+
+  /* ===== 响应式 ===== */
+  @media (max-width: 900px) {
+    .hobby-grid { flex-direction: column; gap: 22px; }
+    .hobby-col { width: 100%; }
+    .hobby-col--offset { margin-top: 0; }
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 680px) {
+    section { padding-top: 52px; }
+    .hero { padding-top: 52px; }
+    .hobby-card { padding: 28px 24px; }
+    .ending { padding: 44px 24px; }
+    .nav-brand .brand-text { display: none; }
+    .nav .btn { padding: 9px 16px; font-size: 13px; }
+    .to-top { right: 18px; bottom: 18px; width: 46px; height: 46px; }
+    .to-top svg { width: 20px; height: 20px; }
+    .stats-row { gap: 12px; }
+  }
+</style>
+<script>
+  document.documentElement.classList.add('reveal-ready');
+</script>
+</head>
+<body>
+
+<!-- ===== 顶部导航 ===== -->
+<header class="page">
+  <nav class="nav glass" aria-label="主导航">
+    <a class="nav-brand" href="./Steve_Alex.html">
+      <span class="nav-logo">SA</span>
+      <span class="brand-text">Steve_Alex</span>
+    </a>
+    <div class="nav-right">
+      <a class="btn" href="./index.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"></path><path d="m12 19-7-7 7-7"></path></svg>
+        返回主页
+      </a>
+    </div>
+  </nav>
+</header>
+
+<main class="page" id="top">
+
+  <!-- ===== Hero ===== -->
+  <section class="hero">
+    <p class="kicker">No mormal no more</p>
+    <h1>没有平凡的爱好<br>只有<span class="hl">跳动的心脏</span></h1>
+    <p class="hero-sub">代码、镜头、双手、旋律、脚步<br>这些不是列表，是我存在的证明</p>
+    <div class="hero-rule"></div>
+  </section>
+
+  <!-- ===== 爱好卡片（错位双列） ===== -->
+  <section>
+    <div class="section-head" data-reveal>
+      <p class="kicker">Craft</p>
+      <h2 class="section-title">我在热爱什么</h2>
+      <p class="section-desc">会一点的爱好，是我认真投入过的世界</p>
+    </div>
+
+    <div class="hobby-grid" style="margin-top:28px;">
+
+      <!-- 左列 -->
+      <div class="hobby-col">
+
+        <!-- 01 代码与工程 -->
+        <article class="hobby-card glass" data-reveal>
+          <div class="hobby-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m8 6-6 6 6 6"></path><path d="m16 6 6 6-6 6"></path><path d="m14 4-4 16"></path></svg>
+          </div>
+          <h3>代码与工程</h3>
+          <p class="hobby-tagline">构建想象，把脑子里的东西变成能用的东西</p>
+          <p>从 Android 开发到 CAD 制图，从 Kotlin 到 Visual Studio——我享受那种"从零开始搭建一个完整系统"的过程。人生第一个 App 项目 <strong>cuty</strong> 是一个可自定义的桌宠软件，虽然在二次修改时忘了备份，但那种从无到有，才是创客的意义。</p>
+          <p>最特别的是我和 AI 的协作方式：不是被 AI 牵着走，而是让 AI 成为我的搭档，我出想法和审美，它出效率和执行力。自己写的 <strong>HTML 实时编辑器</strong>，顺手、简洁、漂亮——工具是给自己用的，所以必须好用。</p>
+          <div class="chips">
+            <span class="chip highlight">Android Studio</span>
+            <span class="chip highlight">Kotlin</span>
+            <span class="chip">COWORK WITH AI</span>
+            <span class="chip">CAD</span>
+            <span class="chip">Visual Studio</span>
+            <span class="chip">桌宠开发</span>
+            <span class="chip">HTML工具</span>
+          </div>
+        </article>
+
+        <!-- 03 造物 -->
+        <article class="hobby-card glass" data-reveal>
+          <div class="hobby-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"></path><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path><path d="M2 2l7.586 7.586"></path><circle cx="11" cy="11" r="2"></circle></svg>
+          </div>
+          <h3>造物</h3>
+          <p class="hobby-tagline">"手这么巧？"——是啊，男生也可以有一双巧手</p>
+          <p>折纸、手工、写一手清秀的字。好像都是"不像男生会做的事"，这只是刻板印象而已。代码是逻辑的造物，手工是温度的造物，字迹是时间的造物。</p>
+          <div class="chips">
+            <span class="chip highlight">折纸</span>
+            <span class="chip highlight">手工</span>
+            <span class="chip">字迹</span>
+            <span class="chip">刻板印象</span>
+          </div>
+          <div class="pull-quote">
+            男生怎么了，男生也能有一双巧手。
+          </div>
+        </article>
+
+        <!-- 05 长跑 -->
+        <article class="hobby-card glass" data-reveal>
+          <div class="hobby-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><!-- 头 -->
+              <circle cx="16.5" cy="4" r="2"></circle><!-- 躯干 -->
+              <path d="M14.5 6.5 L11 13"></path><!-- 前手臂 -->
+              <path d="M14 8 L18.5 9.5"></path><!-- 后手臂 -->
+              <path d="M13.5 9 L9 7.5"></path><!-- 前腿 -->
+              <path d="M11 13 L14.5 16 L18 19.5"></path><!-- 后腿 -->
+              <path d="M11 13 L8 16.5 L4 18"></path>
+            </svg>
+          </div>
+          <h3>长跑</h3>
+          <p class="hobby-tagline">喜欢跑步，没有理由</p>
+          <p>不为减肥，不为健身，只是迈出脚步的那一刻开始，进步就具体可感。<strong>"无限进步"</strong>的 slogan，来源于对跑步的热爱。</p>
+          <p>长跑所教会我的便是，把热爱变成细水长流。</p>
+          <div class="chips">
+            <span class="chip highlight">长跑</span>
+            <span class="chip">旗手</span>
+            <span class="chip">耐心</span>
+          </div>
+        </article>
+
+      </div>
+
+      <!-- 右列（整体下沉，形成错位） -->
+      <div class="hobby-col hobby-col--offset">
+
+        <!-- 02 摄影与光影 -->
+        <article class="hobby-card glass" data-reveal>
+          <div class="hobby-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path><circle cx="12" cy="13" r="3.5"></circle></svg>
+          </div>
+          <h3>摄影与光影</h3>
+          <p class="hobby-tagline">用 SONY nex5n 框住那些稍纵即逝的瞬间</p>
+          <p>手里的 SONY nex5n 不算新，但足够让我学会"观察"——观察光、观察那个刚好的角度。摄影不是炫耀，是观察世界的方式：同样的路走一百遍，举起相机才发现<strong>今天不一样</strong>。</p>
+          <div class="chips">
+            <span class="chip highlight">SONY nex5n</span>
+            <span class="chip highlight">摄影</span>
+            <span class="chip">Photoshop</span>
+            <span class="chip">光影</span>
+          </div>
+        </article>
+
+        <!-- 04 明星与旋律 -->
+        <article class="hobby-card glass" data-reveal>
+          <div class="hobby-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
+          </div>
+          <h3>明星与旋律</h3>
+          <p class="hobby-tagline">追星只是一种审美</p>
+          <p>好的音乐没有国籍，BLACKPINK、Rosé、IU 李知恩、宋雨琦、邓紫棋……从韩国女团到华语实力唱将。每一种风格，每一位歌手，都有其独特的魅力。</p>
+          <p>Rosé 的声线、IU 的叙事感、雨琦的能量、G.E.M. 的穿透力。喜欢 K-pop 不是跟风，是真的被那种制作精度和舞台表现力打动。</p>
+          <div class="chips">
+            <span class="chip highlight">BLACKPINK</span>
+            <span class="chip highlight">Rosé</span>
+            <span class="chip">IU · 李知恩</span>
+            <span class="chip">宋雨琦</span>
+            <span class="chip">邓紫棋</span>
+          </div>
+        </article>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 结尾 ===== -->
+  <section>
+    <div class="ending glass" data-reveal>
+      <h2>这，就是我，独一无二的我</h2>
+      <p>全球限量的我，可是很珍贵的呢;-)</p>
+      <div class="ending-actions">
+        <a class="btn btn-primary" href="./index.html">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 10 9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><path d="M9 22V12h6v10"></path></svg>
+          返回主页
+        </a>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ===== 页脚 ===== -->
+<footer class="footer page">
+  <a class="nav-brand" href="#top">
+    <span class="nav-logo">SA</span>
+    <span class="brand-text">Steve_Alex</span>
+  </a>
+  <p>© 2026 Steve_Alex_H</p>
+</footer>
+
+<!-- ===== 返回顶部 ===== -->
+<button class="to-top" type="button" aria-label="返回顶部" title="返回顶部">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 19V5"></path>
+    <path d="m5 12 7-7 7 7"></path>
+  </svg>
+</button>
+
+<script>
+(function () {
+  var items = Array.prototype.slice.call(document.querySelectorAll('[data-reveal]'));
+  var STEP = 140;
+  if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+
+  function setDelays() {
+    items.forEach(function (el) {
+      var siblings = Array.prototype.filter.call(el.parentElement.children, function (c) {
+        return c.hasAttribute('data-reveal');
+      });
+      var index = siblings.indexOf(el);
+      el.style.setProperty('--reveal-delay', (index > 0 ? index * STEP : 0) + 'ms');
+    });
+  }
+
+  var io = null;
+  function start() {
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce || !('IntersectionObserver' in window)) {
+      items.forEach(function (el) { el.classList.add('is-visible'); });
+      return;
+    }
+    if (io) io.disconnect();
+    io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('is-visible');
+        } else if (entry.boundingClientRect.top > 0) {
+          entry.target.classList.remove('is-visible');
+        }
+      });
+    }, { threshold: 0.12, rootMargin: '0px 0px -8% 0px' });
+    items.forEach(function (el) { io.observe(el); });
+  }
+
+  setDelays();
+  start();
+  window.addEventListener('pageshow', function (e) {
+    if (e.persisted) {
+      items.forEach(function (el) { el.classList.remove('is-visible'); });
+      start();
+    }
+  });
+})();
+</script>
+
+<script>
+(function () {
+  var btn = document.querySelector('.to-top');
+  if (!btn) return;
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function update() {
+    if (window.scrollY > 400) btn.classList.add('is-show');
+    else btn.classList.remove('is-show');
+  }
+  btn.addEventListener('click', function () {
+    window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
+  });
+  window.addEventListener('scroll', update, { passive: true });
+  update();
+})();
+</script>
+
+</body>
+</html>
+<!-- （注：内容由AI生成） -->

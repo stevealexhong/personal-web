@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Steve_Alex</title>
+<meta name="description" content="Steve的个人主页">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&family=Noto+Serif+SC:wght@700&display=swap">
+<style>
+  /* ===== 设计变量（浅紫主题） ===== */
+  :root {
+    --bg: #F6F2FC;              /* 主底色：极浅紫 */
+    --bg-cool: #EDE6F9;         /* 冷调浅紫 */
+    --ink: #2A2438;             /* 主文字：带紫调的深墨 */
+    --ink-soft: #5E5674;        /* 次级文字 */
+    --ink-faint: #8D85A3;       /* 弱化文字 */
+    --card: rgba(255, 255, 255, 0.52);
+    --card-strong: rgba(255, 255, 255, 0.68);
+    --card-border: rgba(255, 255, 255, 0.85);
+    --accent: #8B6FD4;          /* 主强调色：浅紫 */
+    --accent-soft: rgba(139, 111, 212, 0.14);
+    --accent-2: #B79CF0;        /* 辅助紫 */
+    --radius-lg: 28px;
+    --radius-md: 20px;
+    --radius-sm: 14px;
+    --shadow-card: 0 12px 40px rgba(105, 85, 160, 0.10);
+    --shadow-float: 0 20px 50px rgba(105, 85, 160, 0.16);
+    --font-serif: "Noto Serif SC", "Songti SC", "STSong", Georgia, serif;
+    --font-sans: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+  }
+
+  /* ===== 基础重置 ===== */
+  *, *::before, *::after { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    font-family: var(--font-sans);
+    font-weight: 400;
+    color: var(--ink);
+    background:
+      /* 第 1 层（最上面）：一层半透明薄纱，用来压暗/提亮图片，保证文字可读 */
+      linear-gradient(rgba(249, 246, 254, 0.78), rgba(237, 230, 249, 0.82)),
+      /* 第 2 层：你的背景图 */
+      url("dabeijing.png") center center / cover no-repeat,
+      /* 第 3 层（最下面）：保底底色*/
+      linear-gradient(165deg, #FBF9FE 0%, var(--bg) 38%, var(--bg-cool) 100%);
+    background-attachment: fixed, fixed, fixed;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /*  微调效果⬆️
+想让背景图更清晰 → 把第 1 层的不透明度调小：
+
+
+linear-gradient(rgba(249, 246, 254, 0.5), rgba(237, 230, 249, 0.55)),
+想让背景图几乎看不见（只做氛围） → 调大：
+
+
+linear-gradient(rgba(249, 246, 254, 0.9), rgba(237, 230, 249, 0.92)), */
+
+
+
+ /* ===== 布局骨架 ===== */
+  .page { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+  section { padding: 84px 0 8px; }
+  .section-head { margin-bottom: 36px; }
+  .kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin: 0 0 10px;
+  }
+  .kicker::before {
+    content: "";
+    width: 22px; height: 2px;
+    border-radius: 2px;
+    background: var(--accent);
+  }
+  .section-title {
+    font-family: var(--font-serif);
+    font-weight: 700;
+    font-size: clamp(26px, 3.6vw, 36px);
+    line-height: 1.3;
+    margin: 0;
+  }
+  .section-desc {
+    color: var(--ink-soft);
+    font-size: 15px;
+    max-width: 560px;
+    margin: 12px 0 0;
+  }
+
+  /* ===== 毛玻璃卡片与按钮 ===== */
+  .glass {
+    background: var(--card);
+    -webkit-backdrop-filter: blur(22px) saturate(1.4);
+    backdrop-filter: blur(22px) saturate(1.4);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 13px 26px;
+    border-radius: 999px;
+    font-family: var(--font-sans);
+    font-size: 15px;
+    font-weight: 500;
+    line-height: 1;
+    text-decoration: none;
+    cursor: pointer;
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    background: rgba(255, 255, 255, 0.5);
+    -webkit-backdrop-filter: blur(16px) saturate(1.4);
+    backdrop-filter: blur(16px) saturate(1.4);
+    color: var(--ink);
+    box-shadow: 0 8px 24px rgba(105, 85, 160, 0.10);
+    transition: transform 0.22s ease, box-shadow 0.22s ease, background 0.22s ease, color 0.22s ease;
+  }
+  .btn svg { width: 17px; height: 17px; flex: none; }
+  .btn:hover {
+    transform: translateY(-2px);
+    background: rgba(255, 255, 255, 0.72);
+    box-shadow: 0 14px 30px rgba(105, 85, 160, 0.16);
+  }
+  .btn:active { transform: translateY(0); }
+  .btn-primary {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-color: rgba(139, 111, 212, 0.28);
+  }
+  .btn-primary:hover {
+    background: rgba(139, 111, 212, 0.24);
+    color: #6E52BE;
+  }
+  a:focus-visible, button:focus-visible {
+    outline: 3px solid rgba(139, 111, 212, 0.45);
+    outline-offset: 3px;
+    border-radius: 999px;
+  }
+
+  /* ===== 顶部导航 ===== */
+  .nav {
+    position: sticky;
+    top: 16px;
+    z-index: 50;
+    margin-top: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 10px 12px 10px 18px;
+  }
+  .nav-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+    color: var(--ink);
+    font-weight: 600;
+    font-size: 15px;
+  }
+  .nav-logo {
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-family: var(--font-serif);
+    font-weight: 700;
+    font-size: 15px;
+    color: #fff;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    box-shadow: 0 4px 12px rgba(139, 111, 212, 0.35);
+  }
+  .nav-links {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .nav-links a {
+    display: inline-block;
+    padding: 9px 15px;
+    border-radius: 999px;
+    text-decoration: none;
+    color: var(--ink-soft);
+    font-size: 14px;
+    font-weight: 500;
+    transition: background 0.2s ease, color 0.2s ease;
+  }
+  .nav-links a:hover { background: rgba(255, 255, 255, 0.6); color: var(--ink); }
+  .nav .btn { padding: 10px 20px; font-size: 14px; }
+
+  /* ===== Hero ===== */
+  .hero {
+    padding-top: 108px;
+    text-align: center;
+  }
+  .hero-avatar {
+    width: 112px; height: 112px;
+    margin: 0 auto 26px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-family: var(--font-serif);
+    font-weight: 700;
+    font-size: 44px;
+    color: #fff;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+    box-shadow: 0 16px 40px rgba(139, 111, 212, 0.35);
+    border: 3px solid rgba(255, 255, 255, 0.95);
+    animation: rise-in 1.15s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .hero h1 {
+    font-family: var(--font-serif);
+    font-weight: 700;
+    font-size: clamp(34px, 5.6vw, 56px);
+    line-height: 1.25;
+    margin: 0 0 16px;
+    animation: rise-in 1.15s cubic-bezier(0.16, 1, 0.3, 1) 0.14s both;
+  }
+  .hero h1 .name { color: var(--accent); }
+  .hero-sub {
+    max-width: 620px;
+    margin: 0 auto 36px;
+    color: var(--ink-soft);
+    font-size: clamp(15px, 2vw, 17px);
+    font-weight: 300;
+    animation: rise-in 1.15s cubic-bezier(0.16, 1, 0.3, 1) 0.28s both;
+  }
+  .hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 14px;
+    animation: rise-in 1.15s cubic-bezier(0.16, 1, 0.3, 1) 0.42s both;
+  }
+  .hero-float {
+    width: 130px; height: 130px;
+    border-radius: 32px;
+    position: absolute;
+    display: grid;
+    place-items: center;
+    color: var(--accent);
+    -webkit-backdrop-filter: blur(18px);
+    backdrop-filter: blur(18px);
+    background: rgba(255, 255, 255, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    box-shadow: var(--shadow-card);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+  }
+  .hero-float svg { width: 30px; height: 30px; }
+  .hero-stage { position: relative; }
+  .hero-stage .float-1 { left: 6%; top: 90px; transform: rotate(-6deg); }
+  .hero-stage .float-2 { right: 5%; top: 140px; transform: rotate(5deg); }
+  .hero-stage .float-3 { right: 14%; bottom: 30px; transform: rotate(-4deg); }
+
+  /* ===== 关于 ===== */
+  .about-grid {
+    display: grid;
+    grid-template-columns: 1.6fr 1fr;
+    gap: 24px;
+  }
+  .about-card { padding: 40px 42px; }
+  .about-card h3 {
+    font-family: var(--font-serif);
+    font-size: 21px;
+    font-weight: 700;
+    margin: 0 0 14px;
+  }
+  .about-card p {
+    color: var(--ink-soft);
+    font-size: 15px;
+    margin: 0 0 14px;
+  }
+  .about-card p:last-of-type { margin-bottom: 26px; }
+  .link-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--accent);
+    font-weight: 500;
+    font-size: 15px;
+    text-decoration: none;
+  }
+  .link-inline svg { width: 16px; height: 16px; transition: transform 0.2s ease; }
+  .link-inline:hover svg { transform: translateX(4px); }
+  .stats-card {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 6px;
+    padding: 40px 42px;
+  }
+  .stat { display: flex; align-items: baseline; gap: 12px; padding: 14px 0; }
+  .stat + .stat { border-top: 1px solid rgba(125, 105, 180, 0.14); }
+  .stat b {
+    font-family: var(--font-serif);
+    font-size: 30px;
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 74px;
+  }
+  .stat span { color: var(--ink-soft); font-size: 14px; }
+
+  /* ===== 技能 ===== */
+  .skills-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+  }
+  .skill-card { padding: 30px 30px 34px; }
+  .skill-icon {
+    width: 46px; height: 46px;
+    border-radius: var(--radius-sm);
+    display: grid;
+    place-items: center;
+    color: var(--accent);
+    background: var(--accent-soft);
+    margin-bottom: 18px;
+  }
+  .skill-icon svg { width: 22px; height: 22px; }
+  .skill-card h3 {
+    font-family: var(--font-serif);
+    font-size: 18px;
+    font-weight: 700;
+    margin: 0 0 10px;
+  }
+  .skill-card > p {
+    color: var(--ink-soft);
+    font-size: 14px;
+    margin: 0 0 18px;
+  }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    display: inline-block;
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ink-soft);
+    background: rgba(255, 255, 255, 0.6);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.9);
+  }
+
+  /* ===== 项目 ===== */
+  .projects-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+  }
+  .project-card {
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.24s ease, box-shadow 0.24s ease;
+  }
+  .project-card:hover {
+    transform: translateY(-6px);
+    box-shadow: var(--shadow-float);
+  }
+  .project-cover {
+    aspect-ratio: 4 / 3;
+    overflow: hidden;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    pointer-events: none; /* 图片作为背景，不能点击打开 */
+    transition: transform 0.4s ease;
+  }
+  .project-card:hover .project-cover { transform: scale(1.05); }
+  .project-body { padding: 26px 28px 28px; display: flex; flex-direction: column; gap: 12px; flex: 1; }
+  .project-body h3 {
+    font-family: var(--font-serif);
+    font-size: 18px;
+    font-weight: 700;
+    margin: 0;
+  }
+  .project-body p {
+    color: var(--ink-soft);
+    font-size: 14px;
+    margin: 0;
+    flex: 1;
+  }
+  .project-body .chips { margin-top: 2px; }
+  .project-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--accent);
+    font-size: 14px;
+    font-weight: 500;
+    text-decoration: none;
+    margin-top: 4px;
+  }
+  .project-link svg { width: 15px; height: 15px; transition: transform 0.2s ease; }
+  .project-link:hover svg { transform: translateX(4px); }
+
+  /* ===== 联系 ===== */
+  .contact-card {
+    text-align: center;
+    padding: 64px 40px;
+    background: var(--card-strong);
+  }
+  .contact-card h2 {
+    font-family: var(--font-serif);
+    font-size: clamp(26px, 3.6vw, 36px);
+    font-weight: 700;
+    margin: 0 0 14px;
+  }
+  .contact-card > p {
+    color: var(--ink-soft);
+    font-size: 15px;
+    max-width: 480px;
+    margin: 0 auto 30px;
+  }
+  .contact-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 14px;
+  }
+  .contact-mail {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 26px;
+    color: var(--ink-soft);
+    font-size: 14px;
+    text-decoration: none;
+  }
+  .contact-mail svg { width: 16px; height: 16px; color: var(--accent); }
+
+  /* ===== 页脚 ===== */
+  .footer {
+    padding: 56px 0 40px;
+    text-align: center;
+    color: var(--ink-faint);
+    font-size: 13px;
+  }
+  .footer .nav-logo {
+    width: 30px; height: 30px;
+    font-size: 13px;
+    margin: 0 auto 12px;
+  }
+  .footer .nav-brand { margin-bottom: 8px; justify-content: center; }
+  .footer .nav-brand .nav-logo { margin: 0; }
+  .footer .brand-text { font-size: 14px; color: var(--ink-soft); }
+  .footer p { margin: 0; }
+
+  /* ===== 返回顶部 ===== */
+  .to-top {
+    position: fixed;
+    right: 28px;
+    bottom: 28px;
+    z-index: 60;
+    width: 50px;
+    height: 50px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.85);
+    background: rgba(255, 255, 255, 0.55);
+    -webkit-backdrop-filter: blur(18px) saturate(1.4);
+    backdrop-filter: blur(18px) saturate(1.4);
+    color: var(--accent);
+    box-shadow: 0 10px 30px rgba(105, 85, 160, 0.16);
+    cursor: pointer;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(14px) scale(0.92);
+    transition: opacity 0.3s ease, transform 0.3s ease, visibility 0.3s ease, background 0.2s ease, box-shadow 0.2s ease;
+  }
+  .to-top svg { width: 22px; height: 22px; }
+  .to-top:hover {
+    background: rgba(255, 255, 255, 0.78);
+    box-shadow: 0 14px 34px rgba(105, 85, 160, 0.22);
+    transform: translateY(-2px) scale(1);
+  }
+  .to-top.is-show {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0) scale(1);
+  }
+  @media (max-width: 680px) {
+    .to-top {
+      right: 18px;
+      bottom: 18px;
+      width: 46px;
+      height: 46px;
+    }
+    .to-top svg { width: 20px; height: 20px; }
+  }
+
+  /* ===== 动画 ===== */
+  @keyframes rise-in {
+    from { opacity: 0; transform: translateY(34px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* =========================================================
+     滚动入场：逐个飞入（缓慢、优雅）
+     ---------------------------------------------------------
+     · 时长：改下面 fly-in 动画的 1.35s
+     · 间距：改 JS 里的 step 变量（默认 140ms）
+     · 位移/缩放：改 @keyframes fly-in 里的 46px / 0.975
+     注意：这里用 translate / scale 独立属性而不是 transform，
+           所以不会和 .project-card:hover 的 transform 打架。
+     ========================================================= */
+  .reveal-ready [data-reveal] {
+    opacity: 0;
+  }
+  .reveal-ready [data-reveal].is-visible {
+    animation: fly-in 1.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: var(--reveal-delay, 0ms);
+  }
+  @keyframes fly-in {
+    from {
+      opacity: 0;
+      translate: 0 46px;
+      scale: 0.975;
+    }
+    to {
+      opacity: 1;
+      translate: 0 0;
+      scale: 1;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-delay: 0s !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      transition-delay: 0s !important;
+    }
+  }
+
+  /* ===== 响应式 ===== */
+  @media (max-width: 900px) {
+    .skills-grid, .projects-grid { grid-template-columns: repeat(2, 1fr); }
+    .hero-stage .float-1 { left: 0; top: 60px; }
+    .hero-stage .float-2 { right: 0; top: 110px; }
+    .hero-stage .float-3 { display: none; }
+  }
+  @media (max-width: 680px) {
+    section { padding-top: 64px; }
+    .hero { padding-top: 80px; }
+    .about-grid { grid-template-columns: 1fr; }
+    .skills-grid, .projects-grid { grid-template-columns: 1fr; }
+    .about-card, .stats-card { padding: 30px 26px; }
+    .contact-card { padding: 48px 24px; }
+    .nav-links { display: none; }
+    .hero-stage .float-1, .hero-stage .float-2 { display: none; }
+  }
+</style>
+<script>
+  /* 只在 JS 可用时才启用“先隐藏、再飞入”，避免脚本失效导致内容看不见 */
+  document.documentElement.classList.add('reveal-ready');
+</script>
+</head>
+<body>
+
+<!-- ===== 顶部导航 ===== -->
+<header class="page">
+  <nav class="nav glass" aria-label="主导航">
+    <a class="nav-brand" href="#top">
+      <span class="brand-text">Steve_Alex的主页</span>
+    </a>
+    <ul class="nav-links">
+      <li><a href="#about">我</a></li>
+      <li><a href="#skills">爱好</a></li>
+      <li><a href="#character">性格</a></li>
+      <li><a href="#History">故事</a></li>
+      <li><a href="#projects">项目</a></li>
+      <li><a href="#contact">其他</a></li>
+    </ul>
+    <a class="btn btn-primary" href="#contact">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2 11 13"></path><path d="M22 2 15 22l-4-9-9-4z"></path></svg>
+      联系我
+    </a>
+  </nav>
+</header>
+
+<main class="page" id="top">
+
+  <!-- ===== Hero ===== -->
+  <section class="hero hero-stage">
+    <div class="hero-avatar" aria-hidden="true">SA</div>
+    <h1>I'm,<span class="name">Steve_Alex</span></h1>
+    <p class="hero-sub">无限进步</p>
+    <div class="hero-actions">
+  <a class="btn btn-primary" href="./Alex_Daily.html">
+  <svg
+    viewBox="0 0 24 24"
+    width="1em"
+    height="1em"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+    focusable="false"
+    style="vertical-align: -0.125em; margin-right: 4px;"
+  >
+    <!-- 铅笔主体与笔尖 -->
+    <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+  </svg>
+  给我留言
+</a>
+      <a class="btn" href="#contact">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><path d="m22 6-10 7L2 6"></path></svg>
+        联系我
+      </a>
+     </div>
+  </section>
+
+  <!-- ===== 关于 ===== -->
+  <section id="about">
+    <div class="section-head" data-reveal>
+      <p class="kicker">About</p>
+      <h2 class="section-title">我，独一无二的我</h2>
+    </div>
+    <div class="about-grid">
+      <article class="about-card glass" data-reveal>
+        <h3>无限进步！</h3>
+        <p>热爱并且追求着一切鲜活的有生命力的事物，酷爱长跑</p>
+        <p>无限进步，德才兼备</p>
+	 <p>以及，高中从来没有被超越的年级第一</p>
+        <a class="link-inline" href="#character">
+          我到底如何
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
+        </a>
+      </article>
+      <aside class="stats-card glass" data-reveal>
+        <div class="stat"><b>3年</b><span>担任高中旗手，班长</span></div>
+        <div class="stat"><b>12+年</b><span>受教育经历</span></div>
+        <div class="stat"><b>1+年</b><span>担任高中体委，纪委</span></div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ===== 技能 ===== -->
+  <section id="skills">
+    <div class="section-head" data-reveal>
+      <p class="kicker">Interests</p>
+      <h2 class="section-title">兴趣？热爱！</h2>
+      <p class="section-desc">没有平凡的爱好，只有跳动的心脏</p>
+    </div>
+    <div class="skills-grid">
+      <article class="skill-card glass" data-reveal>
+        <div class="skill-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8 6-6 6 6 6"></path><path d="m16 6 6 6-6 6"></path><path d="m14 4-4 16"></path></svg>
+        </div>
+        <h3>开发与工程</h3>
+        <p>构建想象</p>
+        <div class="chips">
+          <span class="chip">Android Studio</span>
+          <span class="chip">kotlin</span>
+          <span class="chip">COWORK WITH AI</span>
+          <span class="chip">CAD</span>
+          <span class="chip">Visual Studio</span>
+          <span class="chip">...</span>
+        </div>
+      </article>
+      <article class="skill-card glass" data-reveal>
+        <div class="skill-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19l7-7 3 3-7 7-3-3z"></path><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path><path d="M2 2l7.586 7.586"></path><circle cx="11" cy="11" r="2"></circle></svg>
+        </div>
+        <h3>设计与制作</h3>
+        <p>发现&创建美好</p>
+        <div class="chips">
+          <span class="chip">PS</span>
+          <span class="chip">SONY nex5n</span>
+          <span class="chip">手工</span>
+          <span class="chip">折纸</span>
+          <span class="chip">摄影</span>
+        </div>
+      </article>
+      <article class="skill-card glass" data-reveal>
+        <div class="skill-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><path d="m22 6-10 7L2 6"></path></svg>
+        </div>
+        <h3>生活与娱乐</h3>
+        <p>用心生活</p>
+        <div class="chips">
+          <span class="chip">BLACK PINK</span>
+          <span class="chip">Rosé</span>
+          <span class="chip">IU･李知恩</span>
+          <span class="chip">宋雨琦</span>
+          <span class="chip">邓紫棋</span>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <!-- ===== 性格 ===== -->
+  <section id="character">
+    <div class="section-head" data-reveal>
+      <p class="kicker">Character</p>
+      <h2 class="section-title">性格</h2>
+      <p class="section-desc">世界赠予我的礼物</p>
+    </div>
+    <div class="projects-grid">
+      <article class="project-card glass" data-reveal>
+        <div class="project-cover" style="background-image: url('JINNIU');" role="img" aria-label="项目一的抽象封面插画"></div>
+        <div class="project-body">
+          <h3>金牛座</h3>
+          <p>5月6日</p>
+          <div class="chips"><span class="chip">浪漫</span><span class="chip">简单</span></div>
+          <a class="project-link" href="https://cn.bing.com/search?qs=LT&pq=%e9%87%91%e7%89%9b%e5%ba%a7&sk=CSYN1&sc=16-3&pglt=387&q=%E9%87%91%E7%89%9B%E5%BA%A7&cvid=4be5034069bc4bdb8bb08047470da24d&gs_lcrp=EgRlZGdlKgYIABAAGEAyBggAEAAYQDIGCAEQLhhAMgYIAhAAGEAyBggDEAAYQDIGCAQQABhAMgYIBRAAGEAyBggGEAAYQDIGCAcQABhAMgYICBAAGEAyBggJEAAYQNIBCDI4ODdqMGo3qAIAsAIA&FORM=ANNTA1&adppc=EDGEESS&PC=ASTS" target="_blank" rel="noopener noreferrer">
+          Details
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
+          </a>
+        </div>
+      </article>
+      <article class="project-card glass" data-reveal>
+        <div class="project-cover" style="background-image: url('INFP-A');" role="img" aria-label="项目二的数据可视化封面插画"></div>
+        <div class="project-body">
+          <h3>INFP-A</h3>
+          <p>我可是特别i的i人，眼睛可尖了，别想跟我耍花招:-)</p>
+          <div class="chips"><span class="chip">内向</span><span class="chip">细腻</span></div>
+          <a class="project-link" href="https://cn.bing.com/search?q=infp-a&qs=n&form=QBRE&sp=-1&lq=0&pq=infp-a&sc=12-6&sk=&cvid=9FF69AC4760245469CC5889F84C2EE09" target="_blank" rel="noopener noreferrer">
+          Details
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
+          </a>
+        </div>
+      </article>
+      <article class="project-card glass" data-reveal>
+        <div class="project-cover" style="background-image: url('DANREN');" role="img" aria-label="项目三的创意封面插画"></div>
+        <div class="project-body">
+          <h3>淡人</h3>
+          <p>特别特别安静，特别不会说话，特别脸皮厚</p>
+          <div class="chips"><span class="chip">创意</span><span class="chip">内容</span></div>
+          <a class="project-link" href="https://cn.bing.com/search?qs=LT&pq=%e9%87%91%e7%89%9b%e5%ba%a7&sk=CSYN1&sc=16-3&pglt=387&q=%E9%87%91%E7%89%9B%E5%BA%A7&cvid=4be5034069bc4bdb8bb08047470da24d&gs_lcrp=EgRlZGdlKgYIABAAGEAyBggAEAAYQDIGCAEQLhhAMgYIAhAAGEAyBggDEAAYQDIGCAQQABhAMgYIBRAAGEAyBggGEAAYQDIGCAcQABhAMgYICBAAGEAyBggJEAAYQNIBCDI4ODdqMGo3qAIAsAIA&FORM=ANNTA1&adppc=EDGEESS&PC=ASTS" target="_blank" rel="noopener noreferrer">
+          Details
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
+          </a>
+          </div>
+      </article>
+    </div>
+  </section>
+
+  <!-- ===== 我的故事 ===== -->
+  <section id="History">
+    <div class="section-head" data-reveal>
+      <p class="kicker">History</p>
+      <h2 class="section-title">我的故事</h2>
+      <p class="section-desc">好汉不提当年勇，但我可不是好汉;-)</p>
+    </div>
+    <div class="projects-grid">
+      <article class="project-card glass" data-reveal>
+        <div class="project-cover" style="background-image: url('LIAN_AI');" role="img" aria-label="项目一的抽象封面插画"></div>
+        <div class="project-body">
+          <h3>《什么？！年级第一和年级第二谈恋爱?》</h3>
+          <p>没有！那是谣言！</p>
+          <div class="chips"><span class="chip">双女主</span><span class="chip">误伤</span><span class="chip">诽闻</span></div>
+          <div class="chips"><span class="chip">轶事</span><span class="chip">全员嗑cp</span></div>
+          <a class="project-link" href="./LIAN_AI.html" target="_blank" rel="noopener noreferrer">
+          Details
+          </a> <!-- ===== 跳转到故事页1 ===== -->
+        </div>
+      </article>
+      <article class="project-card glass" data-reveal>
+        <div class="project-cover" style="background-image: url('DAI_SHOU_JI');" role="img" aria-label="项目二的数据可视化封面插画"></div>
+        <div class="project-body">
+          <h3>《啊？班长带头带手机？7天之内坠机俩？》</h3>
+          <p>嗯对，学习用的，有时候用来放松一下</p>
+          <div class="chips"><span class="chip">紧张</span><span class="chip">刺激</span><span class="chip">谍中谍</span></div>
+          <div class="chips"><span class="chip">反串</span><span class="chip">极限拉扯</span><span class="chip">智斗</span></div>
+          <a class="project-link" href="./SHOU_JI.html" target="_blank" rel="noopener noreferrer">
+          Details
+          </a><!-- ===== 跳转到故事页2 ===== -->
+        </div>
+      </article>
+      <article class="project-card glass" data-reveal>
+        <div class="project-cover" style="background-image: url('BU_PING_FAN');" role="img" aria-label="项目三的创意封面插画"></div>
+        <div class="project-body">
+          <h3>“手这么巧”“哦哟居然还听Kpop”</h3>
+          <p>男生喜欢明星怎么了，男生也能有一双巧手，也可以写一手清秀的字</p>
+          <div class="chips"><span class="chip">创意</span><span class="chip">刻板印象</span><span class="chip">表里</span></div>
+          <a class="project-link" href="./DU_TE.html" target="_blank" rel="noopener noreferrer">
+          Details
+          </a><!-- ===== 跳转到故事页3 ===== -->
+          </div>
+      </article>
+    </div>
+  </section>
+
+ <!-- ===== 项目 ===== -->
+  <section id="projects">
+    <div class="section-head" data-reveal>
+      <p class="kicker">Projects</p>
+      <h2 class="section-title">杰作！</h2>
+      <p class="section-desc">在AI时代，Steve_Alex强的可怕</p>
+    </div>
+    <div class="projects-grid">
+      <article class="project-card glass" data-reveal>
+        <div class="project-cover" style="background-image: url('CUTY');" role="img" aria-label="项目一的抽象封面插画"></div>
+        <div class="project-body">
+          <h3>cuty</h3>
+          <p>人生中第一个app项目，是一个可自定义的桌宠软件，特别好玩，可惜在二改的时候搞忘备份了:(</p>
+          <div class="chips"><span class="chip">游戏</span><span class="chip">app</span></div>
+          <a class="project-link" href="#projects">
+            查看案例
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
+          </a>
+        </div>
+      </article>
+      <article class="project-card glass" data-reveal>
+        <div class="project-cover" style="background-image: url('HTML');" role="img" aria-label="项目三的创意封面插画"></div>
+        <div class="project-body">
+          <h3>HTML实时编辑</h3>
+          <p>编写的网页编辑工具，顺手，简洁，漂亮</p>
+          <div class="chips"><span class="chip">工具</span><span class="chip">创作</span></div>
+          <a class="project-link" href="./editor_3.0.html" target="_blank" rel="noopener noreferrer">
+            立即体验
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
+          </a>
+        </div>
+      </article>
+      <article class="project-card glass" data-reveal>
+        <div class="project-cover" style="background-image: url('WEN_ZHANG');" role="img" aria-label="项目三的创意封面插画"></div>
+        <div class="project-body">
+          <h3>留给高中母校的最后一篇文章</h3>
+          <p>我的母校很烂，但我依旧热爱它，因为那是我热烈的青春</p>
+          <div class="chips"><span class="chip">回忆</span><span class="chip">怀念</span></div>
+          <a class="project-link" href="https://mp.weixin.qq.com/s/9RhxzjifZLCrks2x6P7wXA" target="_blank" rel="noopener noreferrer">
+          查看
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
+          </a>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <!-- ===== 联系 ===== -->
+  <section id="contact">
+    <div class="contact-card glass" data-reveal>
+      <h2>也许，我们可以合作？</h2>
+      <p>无论是对我的建议还是合作的可能，或者单纯想打个招呼，都很欢迎:-)</p>
+      <div class="contact-actions">
+<a class="btn btn-primary" href="https://www.bilibili.com/?spm_id_from=333.337.0.0" target="_blank" rel="noopener noreferrer">
+  或者，在这里放松一下？
+</a>
+      </div>
+      <a class="contact-mail" href="178731176@qq.com">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><path d="m22 6-10 7L2 6"></path></svg>
+        178731176@qq.com
+      </a>
+    </div>
+  </section>
+
+</main>
+
+<!-- ===== 页脚 ===== -->
+<footer class="footer page">
+  <a class="nav-brand" href="#top">
+    <span class="nav-logo">SA</span>
+    <span class="brand-text">Steve_Alex</span>
+  </a>
+  <p>© 2026 Steve_Alex_H</p>
+</footer>
+
+<!-- ===== 返回顶部 ===== -->
+<button class="to-top" type="button" aria-label="返回顶部" title="返回顶部">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M12 19V5"></path>
+    <path d="m5 12 7-7 7 7"></path>
+  </svg>
+</button>
+
+<script>
+(function () {
+  var items = Array.prototype.slice.call(document.querySelectorAll('[data-reveal]'));
+  var STEP = 140;
+
+  // 刷新时禁用浏览器自动恢复滚动位置，否则元素一进页面就在视口里，动画会瞬间全播完
+  if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+
+  function setDelays() {
+    items.forEach(function (el) {
+      var siblings = Array.prototype.filter.call(el.parentElement.children, function (c) {
+        return c.hasAttribute('data-reveal');
+      });
+      var index = siblings.indexOf(el);
+      el.style.setProperty('--reveal-delay', (index > 0 ? index * STEP : 0) + 'ms');
+    });
+  }
+
+  var io = null;
+
+  function start() {
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (reduce || !('IntersectionObserver' in window)) {
+      items.forEach(function (el) { el.classList.add('is-visible'); });
+      return;
+    }
+
+    if (io) io.disconnect();
+
+    io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('is-visible');   // 进入 → 飞入
+        } else if (entry.boundingClientRect.top > 0) {
+          // 从下方离开视口 → 摘掉类，等下次再飞入（不回滚已看过的内容，避免往上滚闪烁）
+          entry.target.classList.remove('is-visible');
+        }
+      });
+    }, {
+      threshold: 0.12,
+      rootMargin: '0px 0px -8% 0px'
+    });
+
+    items.forEach(function (el) { io.observe(el); });
+  }
+
+  setDelays();
+  start();
+
+  // 从 bfcache 恢复（浏览器前进/后退）时重来一遍
+  window.addEventListener('pageshow', function (e) {
+    if (e.persisted) {
+      items.forEach(function (el) { el.classList.remove('is-visible'); });
+      start();
+    }
+  });
+})();
+</script>
+
+<script>
+(function () {
+  var btn = document.querySelector('.to-top');
+  if (!btn) return;
+
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function update() {
+    if (window.scrollY > 400) {
+      btn.classList.add('is-show');
+    } else {
+      btn.classList.remove('is-show');
+    }
+  }
+
+  btn.addEventListener('click', function () {
+    window.scrollTo({
+      top: 0,
+      behavior: reduce ? 'auto' : 'smooth'
+    });
+  });
+
+  window.addEventListener('scroll', update, { passive: true });
+  update();
+})();
+</script>
+
+</body>
+</html>

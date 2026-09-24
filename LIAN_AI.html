@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>什么？！年级第一和年级第二谈恋爱? · Steve_Alex</title>
+<meta name="description" content="Steve_Alex 的故事：什么？！年级第一和年级第二谈恋爱?">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&family=Noto+Serif+SC:wght@700&display=swap">
+<style>
+  /* ===== 设计变量（浅紫主题 · 与主页完全一致） ===== */
+  :root {
+    --bg: #F6F2FC;
+    --bg-cool: #EDE6F9; 
+    --ink: #2A2438;
+    --ink-soft: #5E5674;
+    --ink-faint: #8D85A3;
+    --card: rgba(255, 255, 255, 0.52);
+    --card-strong: rgba(255, 255, 255, 0.68);
+    --card-border: rgba(255, 255, 255, 0.85);
+    --accent: #8B6FD4;
+    --accent-soft: rgba(139, 111, 212, 0.14);
+    --accent-2: #B79CF0;
+    --radius-lg: 28px;
+    --radius-md: 20px;
+    --radius-sm: 14px;
+    --shadow-card: 0 12px 40px rgba(105, 85, 160, 0.10);
+    --shadow-float: 0 20px 50px rgba(105, 85, 160, 0.16);
+    --font-serif: "Noto Serif SC", "Songti SC", "STSong", Georgia, serif;
+    --font-sans: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+  }
+
+  /* ===== 基础重置 ===== */
+  *, *::before, *::after { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    font-family: var(--font-sans);
+    font-weight: 400;
+    color: var(--ink);
+    background:
+      linear-gradient(rgba(249, 246, 254, 0.78), rgba(237, 230, 249, 0.82)),
+      url("dabeijing.png") center center / cover no-repeat,
+      linear-gradient(165deg, #FBF9FE 0%, var(--bg) 38%, var(--bg-cool) 100%);
+    background-attachment: fixed, fixed, fixed;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ===== 布局骨架 ===== */
+  .page { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+  .kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin: 0 0 10px;
+  }
+  .kicker::before {
+    content: "";
+    width: 22px; height: 2px;
+    border-radius: 2px;
+    background: var(--accent);
+  }
+
+  /* ===== 毛玻璃与按钮 ===== */
+  .glass {
+    background: var(--card);
+    -webkit-backdrop-filter: blur(22px) saturate(1.4);
+    backdrop-filter: blur(22px) saturate(1.4);
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 13px 26px;
+    border-radius: 999px;
+    font-family: var(--font-sans);
+    font-size: 15px;
+    font-weight: 500;
+    line-height: 1;
+    text-decoration: none;
+    cursor: pointer;
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    background: rgba(255, 255, 255, 0.5);
+    -webkit-backdrop-filter: blur(16px) saturate(1.4);
+    backdrop-filter: blur(16px) saturate(1.4);
+    color: var(--ink);
+    box-shadow: 0 8px 24px rgba(105, 85, 160, 0.10);
+    transition: transform 0.22s ease, box-shadow 0.22s ease, background 0.22s ease, color 0.22s ease;
+  }
+  .btn svg { width: 17px; height: 17px; flex: none; }
+  .btn:hover {
+    transform: translateY(-2px);
+    background: rgba(255, 255, 255, 0.72);
+    box-shadow: 0 14px 30px rgba(105, 85, 160, 0.16);
+  }
+  .btn:active { transform: translateY(0); }
+  .btn-primary {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-color: rgba(139, 111, 212, 0.28);
+  }
+  .btn-primary:hover { background: rgba(139, 111, 212, 0.24); color: #6E52BE; }
+  a:focus-visible, button:focus-visible {
+    outline: 3px solid rgba(139, 111, 212, 0.45);
+    outline-offset: 3px;
+    border-radius: 999px;
+  }
+
+  /* ===== 顶部导航 ===== */
+  .nav {
+    position: sticky;
+    top: 16px;
+    z-index: 50;
+    margin-top: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 10px 12px 10px 18px;
+  }
+  .nav-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+    color: var(--ink);
+    font-weight: 600;
+    font-size: 15px;
+  }
+  .nav-logo {
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-family: var(--font-serif);
+    font-weight: 700;
+    font-size: 15px;
+    color: #fff;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    box-shadow: 0 4px 12px rgba(139, 111, 212, 0.35);
+  }
+  .nav-right { display: flex; align-items: center; gap: 10px; }
+  .nav .btn { padding: 10px 20px; font-size: 14px; }
+
+  /* ===== 故事 Hero ===== */
+  .story-hero {
+    padding: 84px 0 0;
+    text-align: center;
+  }
+  .story-hero .kicker { margin-bottom: 18px; }
+  .story-title {
+    font-family: var(--font-serif);
+    font-weight: 700;
+    font-size: clamp(26px, 4.4vw, 44px);
+    line-height: 1.35;
+    margin: 0 0 18px;
+    animation: rise-in 1.15s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .story-title .hl { color: var(--accent); }
+  .story-sub {
+    max-width: 620px;
+    margin: 0 auto 26px;
+    color: var(--ink-soft);
+    font-size: clamp(15px, 2vw, 17px);
+    font-weight: 300;
+    animation: rise-in 1.15s cubic-bezier(0.16, 1, 0.3, 1) 0.14s both;
+  }
+  .story-meta {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    animation: rise-in 1.15s cubic-bezier(0.16, 1, 0.3, 1) 0.28s both;
+  }
+  .story-rule {
+    width: 60px;
+    height: 3px;
+    border-radius: 3px;
+    margin: 44px auto 0;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    opacity: 0.6;
+  }
+
+  /* ===== 正文 ===== */
+  .story-wrap { max-width: 760px; margin: 0 auto; }
+  .story-section { padding: 64px 0 0; }
+  .story-card { padding: 44px 46px; }
+  .chapter {
+    font-family: var(--font-serif);
+    font-size: 21px;
+    font-weight: 700;
+    margin: 0 0 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .chapter .num {
+    flex: none;
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-family: var(--font-sans);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border: 1px solid rgba(139, 111, 212, 0.2);
+  }
+  .story-card p {
+    color: var(--ink-soft);
+    font-size: 16px;
+    line-height: 2;
+    margin: 0 0 20px;
+  }
+  .story-card p:last-child { margin-bottom: 0; }
+  .story-card p strong { color: var(--ink); font-weight: 600; }
+
+  .dropcap::first-letter {
+    float: left;
+    font-family: var(--font-serif);
+    font-size: 52px;
+    line-height: 0.86;
+    font-weight: 700;
+    color: var(--accent);
+    margin: 6px 12px 0 0;
+  }
+
+  .pull-quote {
+    border-left: 3px solid var(--accent);
+    padding: 2px 0 2px 22px;
+    margin: 32px 0;
+    font-family: var(--font-serif);
+    font-size: 19px;
+    line-height: 1.8;
+    color: var(--accent);
+  }
+
+  .story-list { margin: 0 0 22px; padding: 0; list-style: none; }
+  .story-list li {
+    position: relative;
+    padding-left: 26px;
+    margin-bottom: 12px;
+    color: var(--ink-soft);
+    font-size: 16px;
+    line-height: 1.9;
+  }
+  .story-list li::before {
+    content: "";
+    position: absolute;
+    left: 6px; top: 14px;
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    opacity: 0.75;
+  }
+  .story-list li b { color: var(--ink); font-weight: 600; }
+
+  /* ===== 时间线 ===== */
+  .timeline { position: relative; padding-left: 30px; margin-top: 6px; }
+  .timeline::before {
+    content: "";
+    position: absolute;
+    left: 8px; top: 8px; bottom: 8px;
+    width: 2px;
+    border-radius: 2px;
+    background: linear-gradient(180deg, rgba(139,111,212,0.5), rgba(183,156,240,0.15));
+  }
+  .tl-item { position: relative; margin-bottom: 26px; }
+  .tl-item:last-child { margin-bottom: 0; }
+  .tl-item::before {
+    content: "";
+    position: absolute;
+    left: -27px; top: 9px;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 4px var(--accent-soft);
+  }
+  .tl-item h4 {
+    font-family: var(--font-serif);
+    font-size: 16px;
+    font-weight: 700;
+    margin: 0 0 4px;
+  }
+  .tl-item p {
+    color: var(--ink-soft);
+    font-size: 15px;
+    line-height: 1.85;
+    margin: 0;
+  }
+
+  /* ===== 结尾卡片 ===== */
+  .ending { text-align: center; padding: 56px 44px; background: var(--card-strong); }
+  .ending h2 {
+    font-family: var(--font-serif);
+    font-size: clamp(22px, 3vw, 30px);
+    font-weight: 700;
+    margin: 0 0 14px;
+  }
+  .ending > p {
+    color: var(--ink-soft);
+    font-size: 15px;
+    max-width: 480px;
+    margin: 0 auto 30px;
+  }
+  .ending-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px; }
+
+  /* ===== 页脚 ===== */
+  .footer {
+    padding: 56px 0 40px;
+    text-align: center;
+    color: var(--ink-faint);
+    font-size: 13px;
+  }
+  .footer .nav-brand { margin-bottom: 8px; justify-content: center; }
+  .footer .brand-text { font-size: 14px; color: var(--ink-soft); }
+  .footer p { margin: 0; }
+
+  /* ===== 返回顶部 ===== */
+  .to-top {
+    position: fixed;
+    right: 28px;
+    bottom: 28px;
+    z-index: 60;
+    width: 50px;
+    height: 50px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.85);
+    background: rgba(255, 255, 255, 0.55);
+    -webkit-backdrop-filter: blur(18px) saturate(1.4);
+    backdrop-filter: blur(18px) saturate(1.4);
+    color: var(--accent);
+    box-shadow: 0 10px 30px rgba(105, 85, 160, 0.16);
+    cursor: pointer;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(14px) scale(0.92);
+    transition: opacity 0.3s ease, transform 0.3s ease, visibility 0.3s ease, background 0.2s ease, box-shadow 0.2s ease;
+  }
+  .to-top svg { width: 22px; height: 22px; }
+  .to-top:hover {
+    background: rgba(255, 255, 255, 0.78);
+    box-shadow: 0 14px 34px rgba(105, 85, 160, 0.22);
+    transform: translateY(-2px) scale(1);
+  }
+  .to-top.is-show { opacity: 1; visibility: visible; transform: translateY(0) scale(1); }
+
+  /* ===== 动画 ===== */
+  @keyframes rise-in {
+    from { opacity: 0; transform: translateY(34px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .reveal-ready [data-reveal] { opacity: 0; }
+  .reveal-ready [data-reveal].is-visible {
+    animation: fly-in 1.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: var(--reveal-delay, 0ms);
+  }
+  @keyframes fly-in {
+    from { opacity: 0; translate: 0 46px; scale: 0.975; }
+    to   { opacity: 1; translate: 0 0;    scale: 1; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-delay: 0s !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      transition-delay: 0s !important;
+    }
+  }
+
+  /* ===== 响应式 ===== */
+  @media (max-width: 680px) {
+    .story-hero { padding-top: 56px; }
+    .story-section { padding-top: 44px; }
+    .story-card { padding: 30px 26px; }
+    .ending { padding: 44px 24px; }
+    .nav-brand .brand-text { display: none; }
+    .nav .btn { padding: 9px 16px; font-size: 13px; }
+    .to-top { right: 18px; bottom: 18px; width: 46px; height: 46px; }
+    .to-top svg { width: 20px; height: 20px; }
+    .dropcap::first-letter { font-size: 42px; }
+  }
+</style>
+<script>
+  document.documentElement.classList.add('reveal-ready');
+</script>
+</head>
+<body>
+
+<!-- ===== 顶部导航 ===== -->
+<header class="page">
+  <nav class="nav glass" aria-label="主导航">
+    <a class="nav-brand" href="./index.html">
+      <span class="nav-logo">SA</span>
+      <span class="brand-text">Steve_Alex</span>
+    </a>
+    <div class="nav-right">
+      <a class="btn" href="./index.html" onclick="if (history.length > 1) { history.back(); return false; }">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"></path><path d="m12 19-7-7 7-7"></path></svg>
+        返回主页
+      </a>
+    </div>
+  </nav>
+</header>
+
+<main class="page" id="top">
+
+  <!-- ===== 故事 Hero ===== -->
+  <section class="story-hero">
+    <p class="kicker">Story · 01</p>
+    <h1 class="story-title">《什么？！<span class="hl">年级第一</span>和<span class="hl">年级第二</span>谈恋爱?》</h1>
+    <p class="story-sub">没有！那是谣言！<br>但如果你非要说，我也不是不能听下去——毕竟那确实是一段很好很好的回忆。</p>
+    <div class="story-meta">
+      <span class="chip">双女主</span>
+      <span class="chip">误伤</span>
+      <span class="chip">绯闻</span>
+      <span class="chip">轶事</span>
+      <span class="chip">全员嗑cp</span>
+    </div>
+    <div class="story-rule" aria-hidden="true"></div>
+  </section>
+
+  <!-- ===== 正文 ===== -->
+  <div class="story-wrap">
+
+    <!-- 引子 -->
+    <section class="story-section">
+      <article class="story-card glass" data-reveal>
+        <h2 class="chapter"><span class="num">起</span>这人挺奇怪，怎么一个人在那里安安静静的</h2>
+        <p class="dropcap">那是一个再普通不过的下午，月考后我们正在换座位，当时注意到有个人安安静静在座位上，而且考的还挺不错，考的第二。</p>
+        <p>“一声不吭考第二，就比我差一点，竟然这么厉害，必须一探究竟”我心里想“一声不吭考第二，就比我差一点，竟然这么厉害，必须一探究竟”我心里想.</p>
+        <p>于是，我把我的位子调到了她旁边</p>
+        <p><strong>“原来你喜欢散兵啊”</strong></p>
+        <p>就这么一句。我们就聊起来了</p>
+        <div class="pull-quote">原来，她不是我想象中那样的高冷女学霸<br><br>本来以为这会是一场恋爱的开端，可是后来她向我坦言她是拉拉...</div>
+      </article>
+    </section>
+
+    <!-- 第一章 -->
+    <section class="story-section">
+      <article class="story-card glass" data-reveal>
+        <h2 class="chapter"><span class="num">1</span>我们真的很像</h2>
+        <p>外貌这种东西，我俩大相径庭，但是论字迹，论性格，论喜好，却没有多少区别</p>
+        <ul class="story-list">
+          <li>我和她写得一样的小而工整的字，一样的喜欢长离，喜欢散兵，都追韩娱，甚至记笔记和画图的风格也很相似。</li>
+          <li>更离谱的是——<b>曾经有好几次老师点评作业的时候把我和她的作业弄错</b></li>
+        </ul>
+        <div class="pull-quote">真的没想到会有一个女生跟我这么像</div>
+      </article>
+    </section>
+
+    <!-- 第二章 -->
+    <section class="story-section">
+      <article class="story-card glass" data-reveal>
+        <h2 class="chapter"><span class="num">2</span>那是误会！误会！真的！</h2>
+        <p>“来玩点游戏吧”那个课间她突然对我说。</p>
+        <p>“啊？可是我不会啊”</p>
+        <p><strong>“不会？那我教你”</strong></p>
+        <p>就这样，我们玩起来了</p>
+        <div class="pull-quote">“你们两个在干什么？！”<br><br>游戏中的我们正在拍手，正好被进来的老师撞见。</div>
+      </article>
+    </section>
+
+    <!-- 第三章 -->
+    <section class="story-section">
+      <article class="story-card glass" data-reveal>
+        <h2 class="chapter"><span class="num">3</span>自那天以后，老师和同学都嗑起我们的cp</h2>
+        <p>“你们俩在谈恋爱吗”<br>“没有”</p>
+        <p>“你最近什么情况，跟她谈恋爱了？”</p>
+        <p>“你那女朋友是叫那个...吧”<br>“什么女朋友，我俩朋友关系而已，不要乱传”</p>
+        <p>............</p>
+        <div class="pull-quote">是的，在外界看来，我们成绩相似，字迹和性格相仿，关系很好<br><br>说实话有段时间我挺喜欢她的，可惜她是个拉，因为太多男生给她留下过心理阴影。</div>
+      </article>
+    </section>
+
+    <!-- 后记 -->
+    <section class="story-section">
+      <article class="story-card glass" data-reveal>
+        <h2 class="chapter"><span class="num">尾</span>后来</h2>
+        <p>后来我们去了不同的学校，走在完全不同的人生里，在聊天框里聊着彼此的新生活，然后她如愿的找到了她的第二任女朋友，我依旧是从前那个普通少年，活在自己的新生活里。</p>
+        <p>其实所谓青春，大概就是这样的东西——</p>
+        <p><strong>一件根本没发生过的事，却成了你回想起来最清楚的那一页。</strong></p>
+        <div class="pull-quote">谣言是假的。<br>但那段一起往前跑的日子，是真的。</div>
+      </article>
+    </section>
+
+    <!-- 结尾 -->
+    <section class="story-section">
+      <div class="ending glass" data-reveal>
+        <h2>故事看完了，回主页坐坐？</h2>
+        <div class="ending-actions">
+          <a class="btn" href="./index.html">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 10 9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><path d="M9 22V12h6v10"></path></svg>
+            返回主页
+          </a>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<!-- ===== 页脚 ===== -->
+<footer class="footer page">
+  <a class="nav-brand" href="#top">
+    <span class="nav-logo">SA</span>
+    <span class="brand-text">Steve_Alex</span>
+  </a>
+  <p>© 2026 Steve_Alex_H</p>
+</footer>
+
+<!-- ===== 返回顶部 ===== -->
+<button class="to-top" type="button" aria-label="返回顶部" title="返回顶部">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M12 19V5"></path>
+    <path d="m5 12 7-7 7 7"></path>
+  </svg>
+</button>
+
+<script>
+(function () {
+  var items = Array.prototype.slice.call(document.querySelectorAll('[data-reveal]'));
+  var STEP = 140;
+
+  if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+
+  function setDelays() {
+    items.forEach(function (el) {
+      var siblings = Array.prototype.filter.call(el.parentElement.children, function (c) {
+        return c.hasAttribute('data-reveal');
+      });
+      var index = siblings.indexOf(el);
+      el.style.setProperty('--reveal-delay', (index > 0 ? index * STEP : 0) + 'ms');
+    });
+  }
+
+  var io = null;
+
+  function start() {
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    if (reduce || !('IntersectionObserver' in window)) {
+      items.forEach(function (el) { el.classList.add('is-visible'); });
+      return;
+    }
+
+    if (io) io.disconnect();
+
+    io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('is-visible');
+        } else if (entry.boundingClientRect.top > 0) {
+          entry.target.classList.remove('is-visible');
+        }
+      });
+    }, {
+      threshold: 0.12,
+      rootMargin: '0px 0px -8% 0px'
+    });
+
+    items.forEach(function (el) { io.observe(el); });
+  }
+
+  setDelays();
+  start();
+
+  window.addEventListener('pageshow', function (e) {
+    if (e.persisted) {
+      items.forEach(function (el) { el.classList.remove('is-visible'); });
+      start();
+    }
+  });
+})();
+</script>
+
+<script>
+(function () {
+  var btn = document.querySelector('.to-top');
+  if (!btn) return;
+
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function update() {
+    if (window.scrollY > 400) {
+      btn.classList.add('is-show');
+    } else {
+      btn.classList.remove('is-show');
+    }
+  }
+
+  btn.addEventListener('click', function () {
+    window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' });
+  });
+
+  window.addEventListener('scroll', update, { passive: true });
+  update();
+})();
+</script>
+
+</body>
+</html>
