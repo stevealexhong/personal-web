@@ -191,6 +191,30 @@
   .to-top:hover { background: rgba(255,255,255,.78); transform: translateY(-2px) scale(1); }
   .to-top.is-show { opacity: 1; visibility: visible; transform: translateY(0) scale(1); }
 
+  /* ✅ 内置浏览器（微信/QQ 等）提示遮罩 */
+  #app-tip { display: none; }
+  html.in-app-browser #app-tip {
+    display: flex; position: fixed; inset: 0; z-index: 9999;
+    align-items: center; justify-content: center; padding: 26px;
+    background: linear-gradient(rgba(249,246,254,.88), rgba(237,230,249,.94));
+    -webkit-backdrop-filter: blur(22px) saturate(1.3);
+    backdrop-filter: blur(22px) saturate(1.3);
+  }
+  html.in-app-browser, html.in-app-browser body { overflow: hidden; height: 100%; }
+  html.in-app-browser main, html.in-app-browser .footer, html.in-app-browser .to-top { pointer-events: none; }
+  .app-tip-card { width: 100%; max-width: 420px; padding: 34px 26px 30px; text-align: center; animation: rise-in .8s cubic-bezier(.16,1,.3,1) both; }
+  .app-tip-icon { width: 64px; height: 64px; margin: 0 auto 18px; border-radius: 50%; display: grid; place-items: center; color: #fff; background: linear-gradient(135deg, var(--accent), var(--accent-2)); box-shadow: 0 12px 30px rgba(139,111,212,.34); }
+  .app-tip-icon svg { width: 30px; height: 30px; }
+  .app-tip-card h2 { font-family: var(--font-serif); font-size: 21px; font-weight: 700; margin: 0 0 10px; }
+  .app-tip-card p { color: var(--ink-soft); font-size: 14px; margin: 0; }
+  .app-tip-card p b { color: var(--accent); font-weight: 600; }
+  .app-tip-steps { list-style: none; counter-reset: s; margin: 20px 0 24px; padding: 16px 18px; border-radius: 18px; background: rgba(139,111,212,.09); text-align: left; font-size: 13.5px; color: var(--ink-soft); }
+  .app-tip-steps li { position: relative; padding-left: 26px; margin: 7px 0; }
+  .app-tip-steps li:first-child { margin-top: 0; }
+  .app-tip-steps li:last-child { margin-bottom: 0; }
+  .app-tip-steps li::before { counter-increment: s; content: counter(s); position: absolute; left: 0; top: 4px; width: 17px; height: 17px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 11px; font-weight: 600; line-height: 17px; text-align: center; }
+  .app-tip-actions { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; }
+
   @media (prefers-reduced-motion: reduce) {
     html { scroll-behavior: auto; }
     *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
@@ -206,8 +230,68 @@
   }
 </style>
 <script>document.documentElement.classList.add('reveal-ready');</script>
+<!-- ✅ 内置浏览器检测（必须放在 head 里，尽早执行，避免页面先闪现再被遮住） -->
+<script>
+(function(){
+  try {
+    var ua = navigator.userAgent || '';
+    var RULES = [
+      { key:'wxwork',    name:'企业微信',   test:/wxwork/i },
+      { key:'wechat',    name:'微信',       test:/micromessenger/i },
+      { key:'qq',        name:'QQ',         test:/\bQQ\/[\d.]+/i },
+      { key:'tim',       name:'TIM',        test:/\bTIM\/[\d.]+/i },
+      { key:'dingtalk',  name:'钉钉',       test:/dingtalk/i },
+      { key:'lark',      name:'飞书',       test:/(\bLark\/|feishu)/i },
+      { key:'alipay',    name:'支付宝',     test:/alipayclient/i },
+      { key:'weibo',     name:'微博',       test:/weibo/i },
+      { key:'douyin',    name:'抖音',       test:/(aweme|bytedancewebview|bytelocale)/i },
+      { key:'xhs',       name:'小红书',     test:/(xhs|xiaohongshu)/i },
+      { key:'toutiao',   name:'今日头条',   test:/(newsarticle|toutiaomicroapp|toutiao)/i },
+      { key:'kuaishou',  name:'快手',       test:/(kwai|kuaishou)/i },
+      { key:'baidu',     name:'百度',       test:/baiduboxapp/i }
+    ];
+    var hit = null;
+    for (var i = 0; i < RULES.length; i++){
+      if (RULES[i].test.test(ua)) { hit = RULES[i]; break; }
+    }
+    // Android 原生 WebView 兜底
+    if (!hit && /Android/i.test(ua) && /\bwv\b/i.test(ua)) {
+      hit = { key:'android-wv', name:'当前应用' };
+    }
+    if (!hit) return;
+
+    window.__IN_APP__ = hit;
+    var de = document.documentElement;
+    de.classList.add('in-app-browser');
+    de.setAttribute('data-in-app', hit.key);
+  } catch (e) {}
+})();
+</script>
 </head>
 <body>
+
+<!-- ✅ 内置浏览器提示遮罩 -->
+<div id="app-tip" role="alertdialog" aria-modal="true" aria-labelledby="appTipTitle">
+  <div class="app-tip-card glass">
+    <div class="app-tip-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+        <path d="M15 3h6v6"/>
+        <path d="M10 14 21 3"/>
+      </svg>
+    </div>
+    <h2 id="appTipTitle">请在浏览器中打开</h2>
+    <p>检测到你在 <b id="appTipEnv">应用</b> 内置浏览器中访问，<br>此处无法正常留言。</p>
+    <ol class="app-tip-steps" id="appTipSteps">
+      <li>点击右上角「···」按钮</li>
+      <li>选择「在浏览器打开」</li>
+    </ol>
+    <div class="app-tip-actions">
+      <button class="btn btn-primary" id="appTipCopy" type="button">复制链接</button>
+    </div>
+  </div>
+</div>
+
 <main class="page" id="top">
   <section class="hero">
     <div class="hero-avatar" aria-hidden="true">SA</div>
@@ -252,6 +336,77 @@
 
 <!-- ✅ Toast 提示 -->
 <div id="toast" role="status" aria-live="polite"></div>
+
+<!-- ✅ 内置浏览器提示：文案填充 + 复制链接 -->
+<script>
+(function(){
+  var env = window.__IN_APP__;
+  if (!env) return;
+
+  function ready(fn){
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fn);
+    else fn();
+  }
+
+  // 各环境的引导文案（默认：右上角 ···）
+  var STEPS = {
+    'douyin':  ['点击右下角「···」或分享按钮', '选择「在浏览器打开」'],
+    'xhs':     ['点击右上角「···」', '选择「在浏览器打开」'],
+    'alipay':  ['点击右上角「···」', '选择「在浏览器打开」'],
+    'baidu':   ['点击右上角「···」', '选择「在浏览器打开」'],
+    'default': ['点击右上角「···」按钮', '选择「在浏览器打开」']
+  };
+
+  function copyText(text){
+    return new Promise(function(resolve){
+      function fallback(){
+        var ok = false;
+        try {
+          var ta = document.createElement('textarea');
+          ta.value = text;
+          ta.setAttribute('readonly', '');
+          ta.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;';
+          document.body.appendChild(ta);
+          ta.select();
+          ta.setSelectionRange(0, ta.value.length);
+          ok = document.execCommand('copy');
+          document.body.removeChild(ta);
+        } catch(e){ ok = false; }
+        resolve(ok);
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext){
+        navigator.clipboard.writeText(text).then(function(){ resolve(true); }, fallback);
+      } else {
+        fallback();
+      }
+    });
+  }
+
+  ready(function(){
+    var envEl = document.getElementById('appTipEnv');
+    if (envEl) envEl.textContent = env.name || '当前应用';
+
+    var stepsEl = document.getElementById('appTipSteps');
+    if (stepsEl){
+      var steps = STEPS[env.key] || STEPS['default'];
+      stepsEl.innerHTML = steps.map(function(s){
+        return '<li>' + s.replace(/[<>&]/g, '') + '</li>';
+      }).join('');
+    }
+
+    var copyBtn = document.getElementById('appTipCopy');
+    if (copyBtn){
+      copyBtn.addEventListener('click', function(){
+        var url = location.href;
+        copyText(url).then(function(ok){
+          copyBtn.textContent = ok ? '已复制 ✓ 粘贴到浏览器打开' : '复制失败，请长按地址栏复制';
+          setTimeout(function(){ copyBtn.textContent = '复制链接'; }, 2600);
+        });
+      });
+    }
+  });
+})();
+</script>
 
 <script>
 // Header Reveal
