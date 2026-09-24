@@ -6,7 +6,6 @@
 <title>Alex_Daily</title>
 <meta name="description" content="Steve_Alex 的留言板">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&family=Noto+Serif+SC:wght@700&display=swap">
-<!-- Supabase SDK -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root {
@@ -72,7 +71,8 @@
   /* New Card */
   .new-card { position: relative; display: flex; flex-direction: column; overflow: hidden; cursor: pointer; user-select: none; transition: transform .24s, box-shadow .24s; }
   .new-card:hover { transform: translateY(-6px); box-shadow: var(--shadow-float); }
-  .new-cover { position: relative; aspect-ratio: 16/10; display: grid; place-items: center; background-color: var(--bg-cool); background-image: url('new-card-bg.png'); background-size: cover; background-position: center; }
+  /* ✅ 404 修复：原来的 new-card-bg.png 换成渐变背景 */
+  .new-cover { position: relative; aspect-ratio: 16/10; display: grid; place-items: center; background-color: var(--bg-cool); background-image: linear-gradient(135deg, #EDE6F9 0%, #D9CCF2 50%, #B79CF0 100%); background-size: cover; background-position: center; }
   .new-cover::after { content: ""; position: absolute; inset: 0; background: linear-gradient(150deg, rgba(139,111,212,.28), rgba(74,58,122,.24)); pointer-events: none; }
   .new-plus { position: relative; z-index: 1; width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; background: rgba(255,255,255,.9); color: var(--accent); box-shadow: 0 10px 26px rgba(105,85,160,.24); transition: transform .35s cubic-bezier(.16,1,.3,1), box-shadow .3s; }
   .new-plus svg { width: 28px; height: 28px; }
@@ -93,6 +93,8 @@
   .note-card.is-drop-target { outline: 2px dashed rgba(139,111,212,.7); outline-offset: 4px; }
   .note-card.is-removing { pointer-events: none; }
   .note-card.is-scroll-hidden { opacity: 0; transform: translateY(30px) scale(.98); pointer-events: none; }
+  /* ✅ 新建卡片时的锁定状态 */
+  .note-card.is-creating { opacity: .6; pointer-events: none; }
 
   /* Toolbar */
   .note-toolbar { position: absolute; top: 12px; right: 12px; display: flex; gap: 6px; z-index: 5; }
@@ -134,6 +136,17 @@
   [contenteditable][data-placeholder]:empty::before { content: attr(data-placeholder); color: var(--ink-faint); pointer-events: none; }
   .note-header.has-cover [contenteditable][data-placeholder]:empty::before { color: rgba(255,255,255,.78); }
   .note-meta { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 18px; padding-top: 12px; border-top: 1px solid rgba(125,105,180,.14); font-size: 12px; color: var(--ink-faint); }
+
+  /* ✅ Toast 提示 */
+  #toast {
+    position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: rgba(139,111,212,.95); color: #fff; padding: 10px 22px; border-radius: 999px;
+    font-size: 14px; font-family: var(--font-sans); font-weight: 500;
+    box-shadow: 0 8px 24px rgba(105,85,160,.3);
+    opacity: 0; visibility: hidden; transition: all .3s cubic-bezier(.16,1,.3,1);
+    z-index: 999; pointer-events: none; white-space: nowrap;
+  }
+  #toast.is-show { opacity: 1; visibility: visible; transform: translateX(-50%) translateY(0); }
 
   /* Animations */
   @keyframes note-in { from { opacity: 0; translate: 0 26px; scale: .965; } to { opacity: 1; translate: 0 0; scale: 1; } }
@@ -189,6 +202,7 @@
     .lightbox { padding: 66px 12px 78px; } .lb-btn { width: 44px; height: 44px; }
     .lb-close { top: 14px; right: 14px; } .lb-del { top: 14px; right: 68px; }
     .lb-prev { left: 10px; } .lb-next { right: 10px; } .lb-counter { bottom: 18px; }
+    #toast { bottom: 84px; font-size: 13px; padding: 9px 18px; }
   }
 </style>
 <script>document.documentElement.classList.add('reveal-ready');</script>
@@ -236,6 +250,9 @@
 
 <button class="to-top" type="button" aria-label="返回顶部"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg></button>
 
+<!-- ✅ Toast 提示 -->
+<div id="toast" role="status" aria-live="polite"></div>
+
 <script>
 // Header Reveal
 (function(){
@@ -260,7 +277,8 @@
 
   /* ================== Supabase 配置 ================== */
   var SUPABASE_URL = 'https://enevubzxkvjunuvdofxu.supabase.co';
-  var SUPABASE_ANON_KEY = 'sb_publishable_R-KjHjqQSkedGgYOqnTknA_1Ltld30N';   //anon public key
+  // ⚠️ 请从 Supabase Project Settings → API Keys 复制正确的 anon / publishable key
+  var SUPABASE_ANON_KEY = 'sb_publishable_R-KjHjqQSkedGgYOqnTknA_1Ltld30N';
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   var BUCKET = 'covers';
 
@@ -273,6 +291,18 @@
 
   var notes = [];
   var revealIO = null;
+
+  /* ================== ✅ Toast ================== */
+  var toastTimer = null;
+  function showToast(msg, isError){
+    var t = document.getElementById('toast');
+    if (!t) return;
+    t.textContent = msg;
+    t.style.background = isError ? 'rgba(217,83,79,.95)' : 'rgba(139,111,212,.95)';
+    t.classList.add('is-show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ t.classList.remove('is-show'); }, 2000);
+  }
 
   /* ================== 工具 ================== */
   function pad(n){return n<10?'0'+n:''+n;}
@@ -301,13 +331,17 @@
       .select('*')
       .order('position', { ascending: false })
       .order('created_at', { ascending: false });
-    if (res.error){ console.error('加载失败', res.error); return []; }
+    if (res.error){
+      console.error('加载失败', res.error);
+      showToast('加载失败：' + (res.error.message || '未知错误'), true);
+      return [];
+    }
     return (res.data || []).map(mapRow);
   }
 
   /* ================== 写：单条卡片防抖保存 ================== */
   var saveTimers = new Map();
-  function saveNote(note){
+  function saveNote(note, silent){
     var prev = saveTimers.get(note.id);
     if (prev) clearTimeout(prev);
     saveTimers.set(note.id, setTimeout(async function(){
@@ -321,7 +355,12 @@
         card_h: note.cardH || 0,
         updated_at: new Date().toISOString()
       }).eq('id', note.id);
-      if (res.error) console.error('保存失败', res.error);
+      if (res.error){
+        console.error('保存失败', res.error);
+        showToast('保存失败：' + (res.error.message || '未知错误'), true);
+      } else if (!silent){
+        showToast('已保存', false);
+      }
     }, 420));
   }
 
@@ -338,7 +377,11 @@
       card_h: note.cardH || 0,
       position: pos
     }).select().single();
-    if (res.error){ console.error('发布失败', res.error); alert('发布失败，请稍后再试'); return null; }
+    if (res.error){
+      console.error('发布失败', res.error);
+      showToast('创建失败：' + (res.error.message || '未知错误'), true);
+      return null;
+    }
     note.id = res.data.id;
     note.position = pos;
     note.createdAt = new Date(res.data.created_at).getTime();
@@ -349,7 +392,11 @@
   /* ================== 写：删除卡片 ================== */
   async function removeNote(id, coverImgs){
     var res = await sb.from('notes').delete().eq('id', id);
-    if (res.error) console.error('删除失败', res.error);
+    if (res.error){
+      console.error('删除失败', res.error);
+      showToast('删除失败：' + (res.error.message || '未知错误'), true);
+      return;
+    }
     if (Array.isArray(coverImgs) && coverImgs.length){
       var paths = coverImgs.map(extractPath).filter(Boolean);
       if (paths.length){
@@ -736,10 +783,11 @@
         function done(i, total){ coverBadge.textContent = (i+1) + '/' + total; coverBadge.classList.add('is-show'); },
         function finish(ds){
           imageLabel.classList.remove('is-loading');
-          if (!ds.length) return;
+          if (!ds.length){ showToast('图片上传失败', true); return; }
           note.coverImgs = (note.coverImgs || []).concat(ds);
           setCovers(coverState, note.coverImgs);
           saveNote(note);
+          showToast('图片已添加', false);
         }
       );
     });
@@ -758,7 +806,6 @@
         sibs.forEach(function(c){ bm.set(c, c.getBoundingClientRect()); });
         card.remove();
         notes = notes.filter(function(n){ return n.id !== note.id; });
-        // 从数据库删除
         removeNote(note.id, note.coverImgs);
         sibs.forEach(function(c){
           if (c === card) return;
@@ -781,32 +828,43 @@
     return card;
   }
 
-  /* ================== 新建 ================== */
+  /* ================== 新建（✅ 修复异步 BUG） ================== */
   async function addNote(){
+    if (newCardBtn._busy) return;              // 防连点
+    newCardBtn._busy = true;
+
     var now = Date.now();
     var note = {
-      id: uid(),                // 临时 id，插入数据库后会被替换为 uuid
+      id: uid(),
       title: '', content: '',
       createdAt: now, updatedAt: now,
       bodyBg: '', coverImgs: [], widthPct: 0, cardH: 0, position: 0
     };
     var el = buildCard(note);
     el.setAttribute('data-id', note.id);
+    el.classList.add('is-creating');            // 锁定视觉 & 交互
+
     var firstNote = grid.querySelector('.note-card');
     flip(function(){ if (firstNote) grid.insertBefore(el, firstNote); else grid.appendChild(el); });
     if (revealIO) revealIO.observe(el);
-    setTimeout(function(){ var t = el.querySelector('.note-title'); if (t) t.focus(); }, 60);
 
     var inserted = await insertNote(note);
     if (!inserted){
-      // 插入失败，撤销 UI
+      // 失败：撤销 UI + 提示
       el.remove();
+      newCardBtn._busy = false;
       return;
     }
-    // 更新 data-id 为真实 uuid
+
+    // 成功：解锁
+    el.classList.remove('is-creating');
     el.setAttribute('data-id', note.id);
     el._note = note;
     notes.unshift(note);
+    newCardBtn._busy = false;
+
+    showToast('已创建新卡片', false);
+    setTimeout(function(){ var t = el.querySelector('.note-title'); if (t) t.focus(); }, 80);
   }
 
   /* ================== 渲染全部 ================== */
