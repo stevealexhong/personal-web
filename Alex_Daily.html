@@ -6,6 +6,8 @@
 <title>Alex_Daily</title>
 <meta name="description" content="Steve_Alex 的留言板">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&family=Noto+Serif+SC:wght@700&display=swap">
+<!-- Supabase SDK -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root {
     --bg: #F6F2FC; --bg-cool: #EDE6F9; --ink: #2A2438; --ink-soft: #5E5674; --ink-faint: #8D85A3;
@@ -109,6 +111,13 @@
   .delete-btn:hover { color: #d9534f; }
   .cover-count { position: absolute; right: -3px; bottom: -3px; min-width: 15px; height: 15px; padding: 0 3px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 10px; font-weight: 600; line-height: 15px; text-align: center; box-shadow: 0 1px 5px rgba(105,85,160,.4); pointer-events: none; display: none; }
   .cover-count.is-show { display: block; }
+  .tool-btn.is-loading { opacity: 1 !important; pointer-events: none; }
+  .tool-btn.is-loading::after {
+    content: ""; position: absolute; inset: 4px; border-radius: 50%;
+    border: 2px solid rgba(139,111,212,.25); border-top-color: var(--accent);
+    animation: spin .7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
 
   /* Header & Body */
   .note-header { position: relative; overflow: hidden; padding: 30px 70px 20px 28px; min-height: 106px; display: flex; flex-direction: column; justify-content: flex-end; background-color: rgba(255,255,255,.42); transition: background-color .3s; cursor: text; }
@@ -248,190 +257,628 @@
 <script>
 (function(){
   'use strict';
-  var STORAGE_KEY='steve_alex_notes_v6';
-  var ORDER_KEY='steve_alex_notes_custom_order_v6';
-  var COVER_INTERVAL=4200;
-  var grid=document.getElementById('cardGrid'), newCardBtn=document.getElementById('newCardBtn');
-  if(!grid||!newCardBtn)return;
-  var notes=[], saveTimer=null, storageWarned=false, revealIO=null;
 
-  function uid(){return'n_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,7);}
+  /* ================== Supabase 配置 ================== */
+  var SUPABASE_URL = 'https://enevubzxkvjunuvdofxu.supabase.co';
+  var SUPABASE_ANON_KEY = 'sb_publishable_R-KjHjqQSkedGgYOqnTknA_1Ltld30N';   //anon public key
+  var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  var BUCKET = 'covers';
+
+  /* ================== 常量 ================== */
+  var COVER_INTERVAL = 4200;
+
+  var grid = document.getElementById('cardGrid');
+  var newCardBtn = document.getElementById('newCardBtn');
+  if (!grid || !newCardBtn) return;
+
+  var notes = [];
+  var revealIO = null;
+
+  /* ================== 工具 ================== */
   function pad(n){return n<10?'0'+n:''+n;}
   function fmt(ts){var d=new Date(ts);return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes());}
-  function save(){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(notes));}catch(e){if(!storageWarned){storageWarned=true;alert('本地存储空间不足');}}}
-  function saveSoon(){clearTimeout(saveTimer);saveTimer=setTimeout(save,300);}
-  function isOrderCustomized(){try{return localStorage.getItem(ORDER_KEY)==='1';}catch(e){return false;}}
-  function markOrderCustomized(){try{localStorage.setItem(ORDER_KEY,'1');}catch(e){}}
-  function currentDomOrder(){return[].map.call(grid.querySelectorAll('.note-card'),function(c){return c.getAttribute('data-id');}).join(',');}
+  function uid(){return 'n_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,7);}
 
-  // 数据加载与迁移
-  function load(){
-    var raw=null;try{raw=localStorage.getItem(STORAGE_KEY);}catch(e){}
-    if(!raw){notes=[];return;}
-    try{var p=JSON.parse(raw);notes=Array.isArray(p)?p:[];}catch(e){notes=[];}
-    notes=notes.filter(function(n){return n&&typeof n==='object';}).map(function(n){
-      var imgs=Array.isArray(n.coverImgs)?n.coverImgs.filter(function(s){return typeof s==='string'&&s;}):[];
-      if(!imgs.length&&typeof n.coverImg==='string'&&n.coverImg)imgs=[n.coverImg];
-      var w=n.widthPct;
-      // 兼容旧版 spanW: 1->33%, 2->66%, 3->100%
-      if(typeof w!=='number'&&typeof n.spanW==='number'){w=Math.min(100,n.spanW*33);}
-      return{id:n.id||uid(),title:typeof n.title==='string'?n.title:'',content:typeof n.content==='string'?n.content:'',createdAt:typeof n.createdAt==='number'?n.createdAt:Date.now(),updatedAt:typeof n.updatedAt==='number'?n.updatedAt:Date.now(),bodyBg:typeof n.bodyBg==='string'?n.bodyBg:(typeof n.bg==='string'?n.bg:''),coverImgs:imgs,widthPct:typeof w==='number'&&w>0?w:0,cardH:typeof n.cardH==='number'&&n.cardH>0?Math.round(n.cardH):0};
-    });
-    if(!isOrderCustomized()){notes.sort(function(a,b){return b.createdAt-a.createdAt;});save();}
+  /* ================== 数据库行 <-> 前端对象 ================== */
+  function mapRow(row){
+    return {
+      id: row.id,
+      title: typeof row.title === 'string' ? row.title : '',
+      content: typeof row.content === 'string' ? row.content : '',
+      bodyBg: typeof row.body_bg === 'string' ? row.body_bg : '',
+      coverImgs: Array.isArray(row.cover_imgs) ? row.cover_imgs.filter(function(s){return typeof s==='string' && s;}) : [],
+      widthPct: typeof row.width_pct === 'number' ? row.width_pct : 0,
+      cardH: typeof row.card_h === 'number' ? row.card_h : 0,
+      position: typeof row.position === 'number' ? row.position : 0,
+      createdAt: new Date(row.created_at).getTime(),
+      updatedAt: new Date(row.updated_at).getTime()
+    };
   }
 
-  var PALETTE_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".6" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".6" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".6" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".6" fill="currentColor"/><path d="M12 2a10 10 0 1 0 0 20c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01a1.5 1.5 0 0 1 1.14-2.49H16a6 6 0 0 0 6-6c0-5-4.5-9-10-9z"/></svg>';
-  var IMAGE_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2.5"/><circle cx="8.8" cy="9" r="1.6"/><path d="m21 15-5.2-5.2L5 21"/></svg>';
+  /* ================== 读：加载所有卡片 ================== */
+  async function loadNotes(){
+    var res = await sb.from('notes')
+      .select('*')
+      .order('position', { ascending: false })
+      .order('created_at', { ascending: false });
+    if (res.error){ console.error('加载失败', res.error); return []; }
+    return (res.data || []).map(mapRow);
+  }
 
-  function processImage(file,cb){
-    if(!file||!/^image\//.test(file.type)){cb(null);return;}
-    var r=new FileReader();r.onerror=function(){cb(null);};
-    r.onload=function(e){var img=new Image();img.onerror=function(){cb(null);};img.onload=function(){var MAX=900,ratio=Math.min(1,MAX/img.width),w=Math.max(1,Math.round(img.width*ratio)),h=Math.max(1,Math.round(img.height*ratio)),c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);try{cb(c.toDataURL('image/jpeg',.78));}catch(err){cb(e.target.result);}};img.src=e.target.result;};
+  /* ================== 写：单条卡片防抖保存 ================== */
+  var saveTimers = new Map();
+  function saveNote(note){
+    var prev = saveTimers.get(note.id);
+    if (prev) clearTimeout(prev);
+    saveTimers.set(note.id, setTimeout(async function(){
+      saveTimers.delete(note.id);
+      var res = await sb.from('notes').update({
+        title: note.title,
+        content: note.content,
+        body_bg: note.bodyBg,
+        cover_imgs: note.coverImgs,
+        width_pct: note.widthPct || 0,
+        card_h: note.cardH || 0,
+        updated_at: new Date().toISOString()
+      }).eq('id', note.id);
+      if (res.error) console.error('保存失败', res.error);
+    }, 420));
+  }
+
+  /* ================== 写：新增卡片 ================== */
+  async function insertNote(note){
+    var maxPos = notes.reduce(function(m,n){return Math.max(m, n.position||0);}, 0);
+    var pos = Math.max(maxPos + 1, Date.now());
+    var res = await sb.from('notes').insert({
+      title: note.title,
+      content: note.content,
+      body_bg: note.bodyBg,
+      cover_imgs: note.coverImgs,
+      width_pct: note.widthPct || 0,
+      card_h: note.cardH || 0,
+      position: pos
+    }).select().single();
+    if (res.error){ console.error('发布失败', res.error); alert('发布失败，请稍后再试'); return null; }
+    note.id = res.data.id;
+    note.position = pos;
+    note.createdAt = new Date(res.data.created_at).getTime();
+    note.updatedAt = new Date(res.data.updated_at).getTime();
+    return note;
+  }
+
+  /* ================== 写：删除卡片 ================== */
+  async function removeNote(id, coverImgs){
+    var res = await sb.from('notes').delete().eq('id', id);
+    if (res.error) console.error('删除失败', res.error);
+    if (Array.isArray(coverImgs) && coverImgs.length){
+      var paths = coverImgs.map(extractPath).filter(Boolean);
+      if (paths.length){
+        sb.storage.from(BUCKET).remove(paths).catch(function(){});
+      }
+    }
+  }
+
+  /* ================== 写：拖拽后重排 position ================== */
+  async function saveOrderFromDom(){
+    if (!notes.length) return;
+    var order = {};
+    [].forEach.call(grid.querySelectorAll('.note-card'), function(c, i){
+      order[c.getAttribute('data-id')] = i;
+    });
+    notes.sort(function(a,b){ return (order[a.id]||0) - (order[b.id]||0); });
+    var base = Date.now() + notes.length + 1;
+    for (var i = 0; i < notes.length; i++){
+      notes[i].position = base - i;
+    }
+    var tasks = notes.map(function(n){
+      return sb.from('notes').update({ position: n.position }).eq('id', n.id);
+    });
+    await Promise.all(tasks);
+  }
+
+  /* ================== 图片上传 ================== */
+  function extractPath(url){
+    if (typeof url !== 'string') return null;
+    var m = url.match(/\/storage\/v1\/object\/public\/[^/]+\/(.+)$/);
+    return m ? decodeURIComponent(m[1].split('?')[0]) : null;
+  }
+
+  async function uploadCover(blob, noteId){
+    var path = noteId + '/' + Date.now() + '_' + Math.random().toString(36).slice(2,7) + '.jpg';
+    var up = await sb.storage.from(BUCKET).upload(path, blob, { contentType: 'image/jpeg', upsert: false });
+    if (up.error) throw up.error;
+    var pub = sb.storage.from(BUCKET).getPublicUrl(path);
+    return pub.data.publicUrl;
+  }
+
+  function processImage(file, noteId, cb){
+    if (!file || !/^image\//.test(file.type)){ cb(null); return; }
+    var r = new FileReader();
+    r.onerror = function(){ cb(null); };
+    r.onload = function(e){
+      var img = new Image();
+      img.onerror = function(){ cb(null); };
+      img.onload = function(){
+        var MAX = 900, ratio = Math.min(1, MAX / img.width);
+        var w = Math.max(1, Math.round(img.width * ratio));
+        var h = Math.max(1, Math.round(img.height * ratio));
+        var c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        c.getContext('2d').drawImage(img, 0, 0, w, h);
+        c.toBlob(function(blob){
+          if (!blob){ cb(null); return; }
+          uploadCover(blob, noteId).then(cb).catch(function(err){ console.error('上传失败', err); cb(null); });
+        }, 'image/jpeg', 0.82);
+      };
+      img.src = e.target.result;
+    };
     r.readAsDataURL(file);
   }
-  function processImages(files,cb){var out=[],i=0;function step(){if(i>=files.length){cb(out);return;}processImage(files[i++],function(d){if(d)out.push(d);step();});}step();}
 
-  // Lightbox
-  var lb=(function(){var r=document.getElementById('lightbox');if(!r)return null;return{root:r,backdrop:document.getElementById('lbBackdrop'),stage:document.getElementById('lbStage'),imgA:document.getElementById('lbImgA'),imgB:document.getElementById('lbImgB'),closeBtn:document.getElementById('lbClose'),delBtn:document.getElementById('lbDel'),prevBtn:document.getElementById('lbPrev'),nextBtn:document.getElementById('lbNext'),counter:document.getElementById('lbCounter'),imgs:[],index:0,activeLayer:'a',token:0,open:false,note:null,state:null};})();
-  function lbUpdateMeta(){if(!lb)return;var t=lb.imgs.length,m=t>1;if(m){lb.counter.textContent=(lb.index+1)+' / '+t;lb.counter.classList.add('is-show');}else{lb.counter.textContent='';lb.counter.classList.remove('is-show');}lb.prevBtn.style.display=m?'':'none';lb.nextBtn.style.display=m?'':'none';if(lb.delBtn)lb.delBtn.style.display=(lb.note&&t>0)?'':'none';}
-  function openLightbox(imgs,startIndex,note,state){if(!lb||!imgs||!imgs.length)return;lb.imgs=imgs.slice();lb.index=Math.max(0,Math.min(startIndex||0,lb.imgs.length-1));lb.token++;lb.activeLayer='a';lb.open=true;lb.note=note;lb.state=state;lb.imgA.classList.remove('is-active');lb.imgB.classList.remove('is-active');lb.imgA.src=lb.imgs[lb.index];lb.imgB.removeAttribute('src');lbUpdateMeta();lb.root.classList.add('is-open');lb.root.setAttribute('aria-hidden','false');document.body.style.overflow='hidden';setTimeout(function(){if(lb.open)lb.imgA.classList.add('is-active');},40);try{lb.closeBtn.focus({preventScroll:true});}catch(e){}}
-  function lbShow(i){if(!lb||lb.imgs.length<=1)return;var t=lb.imgs.length;lb.index=((i%t)+t)%t;var cur=lb.activeLayer==='a'?lb.imgA:lb.imgB,nxt=lb.activeLayer==='a'?lb.imgB:lb.imgA,src=lb.imgs[lb.index],tk=++lb.token;function apply(){if(tk!==lb.token)return;nxt.classList.add('is-active');cur.classList.remove('is-active');lb.activeLayer=lb.activeLayer==='a'?'b':'a';}if(nxt.getAttribute('src')===src)apply();else{nxt.onload=apply;nxt.onerror=apply;nxt.src=src;}lbUpdateMeta();}
-  function closeLightbox(){if(!lb||!lb.open)return;lb.open=false;lb.token++;lb.root.classList.remove('is-open');lb.root.setAttribute('aria-hidden','true');document.body.style.overflow='';}
-  function lbRefresh(){if(!lb)return;lb.token++;var cur=lb.activeLayer==='a'?lb.imgA:lb.imgB,other=lb.activeLayer==='a'?lb.imgB:lb.imgA;other.classList.remove('is-active');other.removeAttribute('src');cur.src=lb.imgs[lb.index];cur.classList.add('is-active');lbUpdateMeta();}
-  function lbDeleteCurrent(){if(!lb||!lb.open)return;var note=lb.note,state=lb.state;if(!note||!Array.isArray(note.coverImgs)||!note.coverImgs.length)return;if(!confirm('确定删除当前这张背景图吗？'))return;note.coverImgs.splice(lb.index,1);save();if(state)setCovers(state,note.coverImgs);if(!note.coverImgs.length){closeLightbox();return;}lb.imgs=note.coverImgs.slice();if(lb.index>=lb.imgs.length)lb.index=lb.imgs.length-1;lbRefresh();}
-  if(lb){lb.closeBtn.onclick=closeLightbox;if(lb.backdrop)lb.backdrop.onclick=closeLightbox;if(lb.delBtn)lb.delBtn.onclick=function(e){e.stopPropagation();lbDeleteCurrent();};lb.prevBtn.onclick=function(e){e.stopPropagation();lbShow(lb.index-1);};lb.nextBtn.onclick=function(e){e.stopPropagation();lbShow(lb.index+1);};document.addEventListener('keydown',function(e){if(!lb.open)return;if(e.key==='Escape')closeLightbox();else if(e.key==='ArrowLeft')lbShow(lb.index-1);else if(e.key==='ArrowRight')lbShow(lb.index+1);});var tx=0,ty=0,tt=false;lb.root.addEventListener('touchstart',function(e){if(!lb.open)return;var t=e.changedTouches[0];tx=t.clientX;ty=t.clientY;tt=true;},{passive:true});lb.root.addEventListener('touchend',function(e){if(!lb.open||!tt)return;tt=false;var t=e.changedTouches[0],dx=t.clientX-tx;if(Math.abs(dx)>46&&Math.abs(dx)>Math.abs(t.clientY-ty)*1.2)lbShow(lb.index+(dx<0?1:-1));},{passive:true});}
+  function processImages(files, noteId, onProgress, cb){
+    var out = [], i = 0;
+    function step(){
+      if (i >= files.length){ cb(out); return; }
+      onProgress && onProgress(i, files.length);
+      processImage(files[i++], noteId, function(d){ if (d) out.push(d); step(); });
+    }
+    step();
+  }
 
-  // Cover Carousel
-  var coverObserver=('IntersectionObserver'in window)?new IntersectionObserver(function(es){es.forEach(function(e){var st=e.target._coverState;if(st)st.visible=e.isIntersecting;});},{threshold:.05}):null;
-  function stopCoverTimer(st){if(st.timer){clearInterval(st.timer);st.timer=null;}}
-  function startCoverTimer(st){stopCoverTimer(st);if(st.els.length<2)return;st.timer=setInterval(function(){if(st.paused||!st.visible||document.hidden||st.els.length<2)return;var p=st.index,n=(p+1)%st.els.length;st.els[p].classList.remove('is-active');st.els[n].classList.add('is-active');st.index=n;},COVER_INTERVAL);}
-  function setCovers(st,imgs){stopCoverTimer(st);st.wrap.innerHTML='';st.els=[];st.index=0;imgs.forEach(function(src){var l=document.createElement('div');l.className='note-cover';l.style.backgroundImage='url("'+src+'")';st.wrap.appendChild(l);st.els.push(l);});st.header.classList.toggle('has-cover',imgs.length>0);if(st.badge){if(imgs.length>1){st.badge.textContent=imgs.length;st.badge.classList.add('is-show');}else st.badge.classList.remove('is-show');}if(st.els.length)requestAnimationFrame(function(){st.els[0].classList.add('is-active');});startCoverTimer(st);}
+  /* ================== Lightbox ================== */
+  var lb = (function(){
+    var r = document.getElementById('lightbox');
+    if (!r) return null;
+    return {
+      root: r, backdrop: document.getElementById('lbBackdrop'), stage: document.getElementById('lbStage'),
+      imgA: document.getElementById('lbImgA'), imgB: document.getElementById('lbImgB'),
+      closeBtn: document.getElementById('lbClose'), delBtn: document.getElementById('lbDel'),
+      prevBtn: document.getElementById('lbPrev'), nextBtn: document.getElementById('lbNext'),
+      counter: document.getElementById('lbCounter'),
+      imgs: [], index: 0, activeLayer: 'a', token: 0, open: false, note: null, state: null
+    };
+  })();
 
-  // FLIP
-  function flip(mutate){var cards=[].slice.call(grid.querySelectorAll('.note-card')),before=new Map();cards.forEach(function(c){before.set(c,c.getBoundingClientRect());});mutate();cards.forEach(function(c){if(c===dragEl)return;var o=before.get(c);if(!o)return;var n=c.getBoundingClientRect(),dx=o.left-n.left,dy=o.top-n.top;if(Math.abs(dx)<.5&&Math.abs(dy)<.5)return;if(c._flipAnim&&c._flipAnim.playState!=='finished')try{c._flipAnim.cancel();}catch(e){}c._flipAnim=c.animate([{transform:'translate('+dx+'px,'+dy+'px)'},{transform:'translate(0,0)'}],{duration:380,easing:'cubic-bezier(.16,1,.3,1)',fill:'none'});});}
+  function lbUpdateMeta(){
+    if (!lb) return;
+    var t = lb.imgs.length, m = t > 1;
+    if (m){ lb.counter.textContent = (lb.index+1) + ' / ' + t; lb.counter.classList.add('is-show'); }
+    else { lb.counter.textContent = ''; lb.counter.classList.remove('is-show'); }
+    lb.prevBtn.style.display = m ? '' : 'none';
+    lb.nextBtn.style.display = m ? '' : 'none';
+    if (lb.delBtn) lb.delBtn.style.display = (lb.note && t > 0) ? '' : 'none';
+  }
 
-  // Drag Sort
-  var dragEl=null,dragStartOrder=null;
-  function clearDropHint(){[].slice.call(grid.querySelectorAll('.is-drop-target')).forEach(function(c){c.classList.remove('is-drop-target');});}
-  function syncOrder(){if(!notes.length)return;var order={};[].forEach.call(grid.querySelectorAll('.note-card'),function(c,i){order[c.getAttribute('data-id')]=i;});notes.sort(function(a,b){var ia=order[a.id]||99999,ib=order[b.id]||99999;return ia-ib;});save();}
-  function makeDraggable(card){
-    card.setAttribute('draggable','true');
-    card.addEventListener('dragstart',function(e){
-      var t=e.target;
-      if(t&&(t.isContentEditable||(t.closest&&t.closest('[contenteditable="true"]')))){e.preventDefault();return;}
-      dragEl=card;dragStartOrder=currentDomOrder();card.classList.add('is-dragging');
-      try{e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',card.getAttribute('data-id'));}catch(err){}
+  function openLightbox(imgs, startIndex, note, state){
+    if (!lb || !imgs || !imgs.length) return;
+    lb.imgs = imgs.slice();
+    lb.index = Math.max(0, Math.min(startIndex || 0, lb.imgs.length - 1));
+    lb.token++; lb.activeLayer = 'a'; lb.open = true; lb.note = note; lb.state = state;
+    lb.imgA.classList.remove('is-active'); lb.imgB.classList.remove('is-active');
+    lb.imgA.src = lb.imgs[lb.index]; lb.imgB.removeAttribute('src');
+    lbUpdateMeta();
+    lb.root.classList.add('is-open');
+    lb.root.setAttribute('aria-hidden', 'false');
+    document.body.style.overflow = 'hidden';
+    setTimeout(function(){ if (lb.open) lb.imgA.classList.add('is-active'); }, 40);
+    try { lb.closeBtn.focus({ preventScroll: true }); } catch(e){}
+  }
+
+  function lbShow(i){
+    if (!lb || lb.imgs.length <= 1) return;
+    var t = lb.imgs.length;
+    lb.index = ((i % t) + t) % t;
+    var cur = lb.activeLayer === 'a' ? lb.imgA : lb.imgB;
+    var nxt = lb.activeLayer === 'a' ? lb.imgB : lb.imgA;
+    var src = lb.imgs[lb.index];
+    var tk = ++lb.token;
+    function apply(){
+      if (tk !== lb.token) return;
+      nxt.classList.add('is-active');
+      cur.classList.remove('is-active');
+      lb.activeLayer = lb.activeLayer === 'a' ? 'b' : 'a';
+    }
+    if (nxt.getAttribute('src') === src) apply();
+    else { nxt.onload = apply; nxt.onerror = apply; nxt.src = src; }
+    lbUpdateMeta();
+  }
+
+  function closeLightbox(){
+    if (!lb || !lb.open) return;
+    lb.open = false; lb.token++;
+    lb.root.classList.remove('is-open');
+    lb.root.setAttribute('aria-hidden', 'true');
+    document.body.style.overflow = '';
+  }
+
+  function lbRefresh(){
+    if (!lb) return;
+    lb.token++;
+    var cur = lb.activeLayer === 'a' ? lb.imgA : lb.imgB;
+    var other = lb.activeLayer === 'a' ? lb.imgB : lb.imgA;
+    other.classList.remove('is-active'); other.removeAttribute('src');
+    cur.src = lb.imgs[lb.index]; cur.classList.add('is-active');
+    lbUpdateMeta();
+  }
+
+  function lbDeleteCurrent(){
+    if (!lb || !lb.open) return;
+    var note = lb.note, state = lb.state;
+    if (!note || !Array.isArray(note.coverImgs) || !note.coverImgs.length) return;
+    if (!confirm('确定删除当前这张背景图吗？')) return;
+    var removed = note.coverImgs.splice(lb.index, 1)[0];
+    saveNote(note);
+    if (state) setCovers(state, note.coverImgs);
+    if (removed){ var p = extractPath(removed); if (p) sb.storage.from(BUCKET).remove([p]).catch(function(){}); }
+    if (!note.coverImgs.length){ closeLightbox(); return; }
+    lb.imgs = note.coverImgs.slice();
+    if (lb.index >= lb.imgs.length) lb.index = lb.imgs.length - 1;
+    lbRefresh();
+  }
+
+  if (lb){
+    lb.closeBtn.onclick = closeLightbox;
+    if (lb.backdrop) lb.backdrop.onclick = closeLightbox;
+    if (lb.delBtn) lb.delBtn.onclick = function(e){ e.stopPropagation(); lbDeleteCurrent(); };
+    lb.prevBtn.onclick = function(e){ e.stopPropagation(); lbShow(lb.index - 1); };
+    lb.nextBtn.onclick = function(e){ e.stopPropagation(); lbShow(lb.index + 1); };
+    document.addEventListener('keydown', function(e){
+      if (!lb.open) return;
+      if (e.key === 'Escape') closeLightbox();
+      else if (e.key === 'ArrowLeft') lbShow(lb.index - 1);
+      else if (e.key === 'ArrowRight') lbShow(lb.index + 1);
     });
-    card.addEventListener('dragend',function(){
-      card.classList.remove('is-dragging');clearDropHint();
-      if(dragStartOrder!==null&&currentDomOrder()!==dragStartOrder)markOrderCustomized();
-      dragStartOrder=null;dragEl=null;syncOrder();
+    var tx = 0, ty = 0, tt = false;
+    lb.root.addEventListener('touchstart', function(e){
+      if (!lb.open) return;
+      var t = e.changedTouches[0]; tx = t.clientX; ty = t.clientY; tt = true;
+    }, { passive: true });
+    lb.root.addEventListener('touchend', function(e){
+      if (!lb.open || !tt) return;
+      tt = false;
+      var t = e.changedTouches[0], dx = t.clientX - tx;
+      if (Math.abs(dx) > 46 && Math.abs(dx) > Math.abs(t.clientY - ty) * 1.2) lbShow(lb.index + (dx < 0 ? 1 : -1));
+    }, { passive: true });
+  }
+
+  /* ================== 封面轮播 ================== */
+  var coverObserver = ('IntersectionObserver' in window)
+    ? new IntersectionObserver(function(es){
+        es.forEach(function(e){ var st = e.target._coverState; if (st) st.visible = e.isIntersecting; });
+      }, { threshold: .05 })
+    : null;
+
+  function stopCoverTimer(st){ if (st.timer){ clearInterval(st.timer); st.timer = null; } }
+  function startCoverTimer(st){
+    stopCoverTimer(st);
+    if (st.els.length < 2) return;
+    st.timer = setInterval(function(){
+      if (st.paused || !st.visible || document.hidden || st.els.length < 2) return;
+      var p = st.index, n = (p + 1) % st.els.length;
+      st.els[p].classList.remove('is-active');
+      st.els[n].classList.add('is-active');
+      st.index = n;
+    }, COVER_INTERVAL);
+  }
+  function setCovers(st, imgs){
+    stopCoverTimer(st);
+    st.wrap.innerHTML = ''; st.els = []; st.index = 0;
+    imgs.forEach(function(src){
+      var l = document.createElement('div');
+      l.className = 'note-cover';
+      l.style.backgroundImage = 'url("' + src + '")';
+      st.wrap.appendChild(l); st.els.push(l);
+    });
+    st.header.classList.toggle('has-cover', imgs.length > 0);
+    if (st.badge){
+      if (imgs.length > 1){ st.badge.textContent = imgs.length; st.badge.classList.add('is-show'); }
+      else st.badge.classList.remove('is-show');
+    }
+    if (st.els.length) requestAnimationFrame(function(){ st.els[0].classList.add('is-active'); });
+    startCoverTimer(st);
+  }
+
+  /* ================== FLIP 位置动画 ================== */
+  function flip(mutate){
+    var cards = [].slice.call(grid.querySelectorAll('.note-card'));
+    var before = new Map();
+    cards.forEach(function(c){ before.set(c, c.getBoundingClientRect()); });
+    mutate();
+    cards.forEach(function(c){
+      if (c === dragEl) return;
+      var o = before.get(c); if (!o) return;
+      var n = c.getBoundingClientRect(), dx = o.left - n.left, dy = o.top - n.top;
+      if (Math.abs(dx) < .5 && Math.abs(dy) < .5) return;
+      if (c._flipAnim && c._flipAnim.playState !== 'finished') try { c._flipAnim.cancel(); } catch(e){}
+      c._flipAnim = c.animate(
+        [{ transform: 'translate(' + dx + 'px,' + dy + 'px)' }, { transform: 'translate(0,0)' }],
+        { duration: 380, easing: 'cubic-bezier(.16,1,.3,1)', fill: 'none' }
+      );
     });
   }
-  grid.addEventListener('dragover',function(e){e.preventDefault();if(!dragEl)return;var target=e.target&&e.target.closest?e.target.closest('.note-card'):null;if(!target||target===dragEl){clearDropHint();return;}var r=target.getBoundingClientRect(),after=e.clientY>r.top+r.height*.5,needMove=after?target.nextElementSibling!==dragEl:target.previousElementSibling!==dragEl;clearDropHint();if(!needMove)return;target.classList.add('is-drop-target');flip(function(){if(after)target.after(dragEl);else target.before(dragEl);});});
-  grid.addEventListener('dragleave',function(e){if(!grid.contains(e.relatedTarget))clearDropHint();});
-  grid.addEventListener('drop',function(e){e.preventDefault();clearDropHint();if(dragEl)syncOrder();});
 
-  // Build Card
-  function buildCard(note){
-    var card=document.createElement('article');
-    card.className='note-card glass is-new';
-    card.setAttribute('data-id',note.id);card._note=note;
-    card.innerHTML='<div class="note-toolbar"><label class="tool-btn" title="书写区背景色"><input type="color" class="bg-color-input">'+PALETTE_SVG+'</label><label class="tool-btn" title="添加背景图"><input type="file" accept="image/*" multiple class="bg-image-input">'+IMAGE_SVG+'<span class="cover-count"></span></label><button class="tool-btn delete-btn" type="button" title="删除卡片">×</button></div><div class="note-header"><div class="note-covers"></div><h3 class="note-title" contenteditable="true" spellcheck="false" data-placeholder="无标题"></h3></div><div class="note-body"><div class="note-content" contenteditable="true" spellcheck="false" data-placeholder="写点什么…"></div><div class="note-meta"><span>创建 <time class="created-at"></time></span><span>编辑 <time class="updated-at"></time></span></div></div>';
+  /* ================== 拖拽排序 ================== */
+  var dragEl = null;
 
-    var titleEl=card.querySelector('.note-title'),contentEl=card.querySelector('.note-content'),createdEl=card.querySelector('.created-at'),updatedEl=card.querySelector('.updated-at'),headerEl=card.querySelector('.note-header'),bodyEl=card.querySelector('.note-body'),colorInput=card.querySelector('.bg-color-input'),imageInput=card.querySelector('.bg-image-input'),coverWrap=card.querySelector('.note-covers'),coverBadge=card.querySelector('.cover-count');
+  function clearDropHint(){
+    [].slice.call(grid.querySelectorAll('.is-drop-target')).forEach(function(c){ c.classList.remove('is-drop-target'); });
+  }
 
-    // 兼容历史数据中的自定义宽度 / 高度
-    if(note.widthPct&&note.widthPct>0){card.style.width=note.widthPct+'%';card.style.columnSpan='all';}
-    if(note.cardH)card.style.height=note.cardH+'px';
-
-    var coverState={wrap:coverWrap,header:headerEl,badge:coverBadge,els:[],index:0,timer:null,paused:false,visible:true};
-    card._coverState=coverState;if(coverObserver)coverObserver.observe(card);
-    card.addEventListener('mouseenter',function(){coverState.paused=true;});
-    card.addEventListener('mouseleave',function(){coverState.paused=false;});
-    headerEl.addEventListener('click',function(e){if(!coverState.els.length)return;var t=e.target;if(t&&t.closest&&t.closest('.note-title'))return;if(t&&t.isContentEditable)return;e.stopPropagation();openLightbox(note.coverImgs,coverState.index,note,coverState);});
-
-    if(note.title)titleEl.textContent=note.title;
-    if(note.content)contentEl.textContent=note.content;
-    createdEl.textContent=fmt(note.createdAt);updatedEl.textContent=fmt(note.updatedAt);
-    if(/^#[0-9a-fA-F]{6}$/.test(note.bodyBg)){colorInput.value=note.bodyBg;bodyEl.style.setProperty('--note-bg',note.bodyBg);}
-    setCovers(coverState,note.coverImgs||[]);
-
-    function onEdit(){note.title=titleEl.textContent;note.content=contentEl.innerText;note.updatedAt=Date.now();updatedEl.textContent=fmt(note.updatedAt);saveSoon();}
-    titleEl.addEventListener('input',onEdit);contentEl.addEventListener('input',onEdit);
-    [titleEl,contentEl].forEach(function(el){
-      el.addEventListener('blur',function(){if(this.textContent.trim()==='')this.innerHTML='';});
-      el.addEventListener('mousedown',function(e){e.stopPropagation();});
-      el.addEventListener('click',function(e){e.stopPropagation();});
+  function makeDraggable(card){
+    card.setAttribute('draggable', 'true');
+    card.addEventListener('dragstart', function(e){
+      var t = e.target;
+      if (t && (t.isContentEditable || (t.closest && t.closest('[contenteditable="true"]')))){ e.preventDefault(); return; }
+      dragEl = card;
+      card.classList.add('is-dragging');
+      try {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', card.getAttribute('data-id'));
+      } catch(err){}
     });
-    colorInput.addEventListener('input',function(){note.bodyBg=this.value;bodyEl.style.setProperty('--note-bg',note.bodyBg);saveSoon();});
-    colorInput.addEventListener('click',function(e){e.stopPropagation();});
-    colorInput.addEventListener('mousedown',function(e){e.stopPropagation();});
-    imageInput.addEventListener('change',function(){var files=[].slice.call(this.files||[]);this.value='';if(!files.length)return;processImages(files,function(ds){if(!ds.length)return;note.coverImgs=(note.coverImgs||[]).concat(ds);setCovers(coverState,note.coverImgs);save();});});
-    imageInput.addEventListener('click',function(e){e.stopPropagation();});
-    imageInput.addEventListener('mousedown',function(e){e.stopPropagation();});
+    card.addEventListener('dragend', function(){
+      card.classList.remove('is-dragging');
+      clearDropHint();
+      dragEl = null;
+      saveOrderFromDom();
+    });
+  }
 
-    card.querySelector('.delete-btn').addEventListener('click',function(e){
-      e.stopPropagation();if(!confirm('确定删除这张卡片吗？'))return;
-      stopCoverTimer(coverState);if(coverObserver)coverObserver.unobserve(card);
-      var removed=false;
+  grid.addEventListener('dragover', function(e){
+    e.preventDefault();
+    if (!dragEl) return;
+    var target = e.target && e.target.closest ? e.target.closest('.note-card') : null;
+    if (!target || target === dragEl){ clearDropHint(); return; }
+    var r = target.getBoundingClientRect();
+    var after = e.clientY > r.top + r.height * .5;
+    var needMove = after ? target.nextElementSibling !== dragEl : target.previousElementSibling !== dragEl;
+    clearDropHint();
+    if (!needMove) return;
+    target.classList.add('is-drop-target');
+    flip(function(){ if (after) target.after(dragEl); else target.before(dragEl); });
+  });
+  grid.addEventListener('dragleave', function(e){ if (!grid.contains(e.relatedTarget)) clearDropHint(); });
+  grid.addEventListener('drop', function(e){
+    e.preventDefault();
+    clearDropHint();
+    if (dragEl) saveOrderFromDom();
+  });
+
+  /* ================== 构建卡片 ================== */
+  var PALETTE_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".6" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".6" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".6" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".6" fill="currentColor"/><path d="M12 2a10 10 0 1 0 0 20c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01a1.5 1.5 0 0 1 1.14-2.49H16a6 6 0 0 0 6-6c0-5-4.5-9-10-9z"/></svg>';
+  var IMAGE_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2.5"/><circle cx="8.8" cy="9" r="1.6"/><path d="m21 15-5.2-5.2L5 21"/></svg>';
+
+  function buildCard(note){
+    var card = document.createElement('article');
+    card.className = 'note-card glass is-new';
+    card.setAttribute('data-id', note.id);
+    card._note = note;
+
+    card.innerHTML =
+      '<div class="note-toolbar">' +
+        '<label class="tool-btn" title="书写区背景色"><input type="color" class="bg-color-input">' + PALETTE_SVG + '</label>' +
+        '<label class="tool-btn" title="添加背景图"><input type="file" accept="image/*" multiple class="bg-image-input">' + IMAGE_SVG + '<span class="cover-count"></span></label>' +
+        '<button class="tool-btn delete-btn" type="button" title="删除卡片">×</button>' +
+      '</div>' +
+      '<div class="note-header"><div class="note-covers"></div><h3 class="note-title" contenteditable="true" spellcheck="false" data-placeholder="无标题"></h3></div>' +
+      '<div class="note-body"><div class="note-content" contenteditable="true" spellcheck="false" data-placeholder="写点什么…"></div><div class="note-meta"><span>创建 <time class="created-at"></time></span><span>编辑 <time class="updated-at"></time></span></div></div>';
+
+    var titleEl = card.querySelector('.note-title');
+    var contentEl = card.querySelector('.note-content');
+    var createdEl = card.querySelector('.created-at');
+    var updatedEl = card.querySelector('.updated-at');
+    var headerEl = card.querySelector('.note-header');
+    var bodyEl = card.querySelector('.note-body');
+    var colorInput = card.querySelector('.bg-color-input');
+    var imageInput = card.querySelector('.bg-image-input');
+    var coverWrap = card.querySelector('.note-covers');
+    var coverBadge = card.querySelector('.cover-count');
+    var imageLabel = imageInput.closest('.tool-btn');
+
+    if (note.widthPct && note.widthPct > 0){ card.style.width = note.widthPct + '%'; card.style.columnSpan = 'all'; }
+    if (note.cardH) card.style.height = note.cardH + 'px';
+
+    var coverState = { wrap: coverWrap, header: headerEl, badge: coverBadge, els: [], index: 0, timer: null, paused: false, visible: true };
+    card._coverState = coverState;
+    if (coverObserver) coverObserver.observe(card);
+    card.addEventListener('mouseenter', function(){ coverState.paused = true; });
+    card.addEventListener('mouseleave', function(){ coverState.paused = false; });
+    headerEl.addEventListener('click', function(e){
+      if (!coverState.els.length) return;
+      var t = e.target;
+      if (t && t.closest && t.closest('.note-title')) return;
+      if (t && t.isContentEditable) return;
+      e.stopPropagation();
+      openLightbox(note.coverImgs, coverState.index, note, coverState);
+    });
+
+    if (note.title) titleEl.textContent = note.title;
+    if (note.content) contentEl.textContent = note.content;
+    createdEl.textContent = fmt(note.createdAt);
+    updatedEl.textContent = fmt(note.updatedAt);
+    if (/^#[0-9a-fA-F]{6}$/.test(note.bodyBg)){
+      colorInput.value = note.bodyBg;
+      bodyEl.style.setProperty('--note-bg', note.bodyBg);
+    }
+    setCovers(coverState, note.coverImgs || []);
+
+    function onEdit(){
+      note.title = titleEl.textContent;
+      note.content = contentEl.innerText;
+      note.updatedAt = Date.now();
+      updatedEl.textContent = fmt(note.updatedAt);
+      saveNote(note);
+    }
+    titleEl.addEventListener('input', onEdit);
+    contentEl.addEventListener('input', onEdit);
+    [titleEl, contentEl].forEach(function(el){
+      el.addEventListener('blur', function(){ if (this.textContent.trim() === '') this.innerHTML = ''; });
+      el.addEventListener('mousedown', function(e){ e.stopPropagation(); });
+      el.addEventListener('click', function(e){ e.stopPropagation(); });
+    });
+
+    colorInput.addEventListener('input', function(){
+      note.bodyBg = this.value;
+      bodyEl.style.setProperty('--note-bg', note.bodyBg);
+      saveNote(note);
+    });
+    ['click','mousedown'].forEach(function(ev){
+      colorInput.addEventListener(ev, function(e){ e.stopPropagation(); });
+      imageInput.addEventListener(ev, function(e){ e.stopPropagation(); });
+    });
+
+    imageInput.addEventListener('change', function(){
+      var files = [].slice.call(this.files || []);
+      this.value = '';
+      if (!files.length) return;
+      imageLabel.classList.add('is-loading');
+      processImages(files, note.id,
+        function done(i, total){ coverBadge.textContent = (i+1) + '/' + total; coverBadge.classList.add('is-show'); },
+        function finish(ds){
+          imageLabel.classList.remove('is-loading');
+          if (!ds.length) return;
+          note.coverImgs = (note.coverImgs || []).concat(ds);
+          setCovers(coverState, note.coverImgs);
+          saveNote(note);
+        }
+      );
+    });
+
+    card.querySelector('.delete-btn').addEventListener('click', function(e){
+      e.stopPropagation();
+      if (!confirm('确定删除这张卡片吗？')) return;
+      stopCoverTimer(coverState);
+      if (coverObserver) coverObserver.unobserve(card);
+      var removed = false;
       function finish(){
-        if(removed)return;removed=true;
-        var sibs=[].slice.call(grid.querySelectorAll('.note-card')),bm=new Map();
-        sibs.forEach(function(c){bm.set(c,c.getBoundingClientRect());});
+        if (removed) return;
+        removed = true;
+        var sibs = [].slice.call(grid.querySelectorAll('.note-card'));
+        var bm = new Map();
+        sibs.forEach(function(c){ bm.set(c, c.getBoundingClientRect()); });
         card.remove();
-        notes=notes.filter(function(n){return n.id!==note.id;});
-        save();
-        sibs.forEach(function(c){if(c===card)return;var o=bm.get(c);if(!o)return;var n=c.getBoundingClientRect(),dx=o.left-n.left,dy=o.top-n.top;if(Math.abs(dx)<.5&&Math.abs(dy)<.5)return;c.animate([{transform:'translate('+dx+'px,'+dy+'px)'},{transform:'translate(0,0)'}],{duration:340,easing:'cubic-bezier(.16,1,.3,1)',fill:'none'});});
-        syncOrder();
+        notes = notes.filter(function(n){ return n.id !== note.id; });
+        // 从数据库删除
+        removeNote(note.id, note.coverImgs);
+        sibs.forEach(function(c){
+          if (c === card) return;
+          var o = bm.get(c); if (!o) return;
+          var n = c.getBoundingClientRect(), dx = o.left - n.left, dy = o.top - n.top;
+          if (Math.abs(dx) < .5 && Math.abs(dy) < .5) return;
+          c.animate(
+            [{ transform: 'translate(' + dx + 'px,' + dy + 'px)' }, { transform: 'translate(0,0)' }],
+            { duration: 340, easing: 'cubic-bezier(.16,1,.3,1)', fill: 'none' }
+          );
+        });
       }
       card.classList.add('is-removing');
-      card.addEventListener('animationend',function(ev){if(ev.animationName!=='note-out')return;finish();});
-      setTimeout(finish,700);
+      card.addEventListener('animationend', function(ev){ if (ev.animationName === 'note-out') finish(); });
+      setTimeout(finish, 700);
     });
 
     makeDraggable(card);
-    card.addEventListener('animationend',function(ev){if(ev.animationName==='note-in')card.classList.remove('is-new');});
+    card.addEventListener('animationend', function(ev){ if (ev.animationName === 'note-in') card.classList.remove('is-new'); });
     return card;
   }
 
-  function addNote(){
-    var now=Date.now();
-    var note={id:uid(),title:'',content:'',createdAt:now,updatedAt:now,bodyBg:'',coverImgs:[],widthPct:0,cardH:0};
-    notes.unshift(note);save();
-    var el=buildCard(note);
-    var firstNote=grid.querySelector('.note-card');
-    flip(function(){if(firstNote)grid.insertBefore(el,firstNote);else grid.appendChild(el);});
-    syncOrder();
-    if(revealIO)revealIO.observe(el);
-    setTimeout(function(){el.querySelector('.note-title').focus();},60);
+  /* ================== 新建 ================== */
+  async function addNote(){
+    var now = Date.now();
+    var note = {
+      id: uid(),                // 临时 id，插入数据库后会被替换为 uuid
+      title: '', content: '',
+      createdAt: now, updatedAt: now,
+      bodyBg: '', coverImgs: [], widthPct: 0, cardH: 0, position: 0
+    };
+    var el = buildCard(note);
+    el.setAttribute('data-id', note.id);
+    var firstNote = grid.querySelector('.note-card');
+    flip(function(){ if (firstNote) grid.insertBefore(el, firstNote); else grid.appendChild(el); });
+    if (revealIO) revealIO.observe(el);
+    setTimeout(function(){ var t = el.querySelector('.note-title'); if (t) t.focus(); }, 60);
+
+    var inserted = await insertNote(note);
+    if (!inserted){
+      // 插入失败，撤销 UI
+      el.remove();
+      return;
+    }
+    // 更新 data-id 为真实 uuid
+    el.setAttribute('data-id', note.id);
+    el._note = note;
+    notes.unshift(note);
   }
 
+  /* ================== 渲染全部 ================== */
   function renderAll(){
-    [].slice.call(grid.querySelectorAll('.note-card')).forEach(function(c){if(c._coverState)stopCoverTimer(c._coverState);if(coverObserver)coverObserver.unobserve(c);c.remove();});
-    notes.forEach(function(note){var el=buildCard(note);el.classList.remove('is-new');grid.appendChild(el);});
+    [].slice.call(grid.querySelectorAll('.note-card')).forEach(function(c){
+      if (c._coverState) stopCoverTimer(c._coverState);
+      if (coverObserver) coverObserver.unobserve(c);
+      c.remove();
+    });
+    notes.forEach(function(note){
+      var el = buildCard(note);
+      el.classList.remove('is-new');
+      grid.appendChild(el);
+    });
     initScrollReveal();
   }
 
-  // 滚动淡入淡出管理
+  /* ================== 滚动淡入淡出 ================== */
   function initScrollReveal(){
-    if(!('IntersectionObserver'in window))return;
-    if(revealIO)revealIO.disconnect();
-    revealIO=new IntersectionObserver(function(entries){
+    if (!('IntersectionObserver' in window)) return;
+    if (revealIO) revealIO.disconnect();
+    revealIO = new IntersectionObserver(function(entries){
       entries.forEach(function(entry){
-        if(entry.isIntersecting){
+        if (entry.isIntersecting){
           entry.target.classList.remove('is-scroll-hidden');
-        }else if(entry.boundingClientRect.top>window.innerHeight*0.5){
+        } else if (entry.boundingClientRect.top > window.innerHeight * .5){
           entry.target.classList.add('is-scroll-hidden');
         }
       });
-    },{threshold:0.08,rootMargin:'0px 0px -40px 0px'});
-    [].forEach.call(grid.querySelectorAll('.note-card'),function(c){revealIO.observe(c);});
+    }, { threshold: .08, rootMargin: '0px 0px -40px 0px' });
+    [].forEach.call(grid.querySelectorAll('.note-card'), function(c){ revealIO.observe(c); });
   }
 
-  newCardBtn.addEventListener('click',addNote);
-  newCardBtn.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();addNote();}});
-  load();renderAll();
+  /* ================== 实时订阅 ================== */
+  function subscribeRealtime(){
+    sb.channel('notes-realtime')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notes' }, function(payload){
+        var row = payload.new;
+        if (notes.some(function(n){ return n.id === row.id; })) return;
+        var note = mapRow(row);
+        notes.unshift(note);
+        var el = buildCard(note);
+        var firstNote = grid.querySelector('.note-card');
+        flip(function(){ if (firstNote) grid.insertBefore(el, firstNote); else grid.appendChild(el); });
+        if (revealIO) revealIO.observe(el);
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'notes' }, function(payload){
+        var id = payload.old && payload.old.id;
+        if (!id) return;
+        notes = notes.filter(function(n){ return n.id !== id; });
+        var card = grid.querySelector('.note-card[data-id="' + id + '"]');
+        if (card){
+          if (card._coverState) stopCoverTimer(card._coverState);
+          if (coverObserver) coverObserver.unobserve(card);
+          card.remove();
+        }
+      })
+      .subscribe();
+  }
+
+  /* ================== 事件绑定 ================== */
+  newCardBtn.addEventListener('click', addNote);
+  newCardBtn.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); addNote(); }
+  });
+
+  /* ================== 启动 ================== */
+  (async function boot(){
+    notes = await loadNotes();
+    renderAll();
+    subscribeRealtime();
+  })();
 })();
 </script>
 
